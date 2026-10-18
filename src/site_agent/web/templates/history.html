@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block content %}
+<p class="eyebrow">History</p>
+<h1>Changes and approvals</h1>
+<p class="lead">Undo restores the files as they were before a change. It is only offered when nothing newer touched the same files, and each file still holds exactly what that change wrote. Otherwise undo would overwrite newer work, so the reason is shown instead.</p>
+
+<h2>Changes</h2>
+{% if runs %}
+<table class="data">
+  <thead><tr><th scope="col">When</th><th scope="col">Files</th><th scope="col">Status</th><th scope="col">Undo</th></tr></thead>
+  <tbody>
+  {% for run in runs %}
+    <tr>
+      <td>{{ run.time }}<br><span class="note">{{ run.run_id }}</span></td>
+      <td>{{ run.files|join(", ") }}</td>
+      <td>{% if run.undone %}<span class="badge badge-muted">Undone</span>{% else %}<span class="badge badge-ok">Saved</span>{% endif %}</td>
+      <td>
+        {% if run.can_undo %}
+          <form method="post" action="/history/{{ run.run_id }}/undo">
+            <input type="hidden" name="csrf" value="{{ csrf }}">
+            <button class="btn" type="submit">Undo this change</button>
+          </form>
+        {% else %}
+          <span class="note">{{ run.reason or 'Not available.' }}</span>
+        {% endif %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="note">No changes have been saved yet.</p>
+{% endif %}
+
+<h2 class="section">Approvals</h2>
+{% if approvals %}
+<table class="data">
+  <thead><tr><th scope="col">When</th><th scope="col">What</th><th scope="col">Approved by</th><th scope="col">Recorded by</th></tr></thead>
+  <tbody>
+  {% for a in approvals %}
+    <tr>
+      <td>{{ a.time }}</td>
+      <td>{{ a.summary }}</td>
+      <td>{{ a.approver }}{% if a.approver_role %} ({{ a.approver_role }}){% endif %}</td>
+      <td>{{ a.recorded_by }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+<p class="note">A record of who checked each change and when. It cannot prove who was at the keyboard.</p>
+{% else %}
+<p class="note">No approvals yet.</p>
+{% endif %}
+{% endblock %}

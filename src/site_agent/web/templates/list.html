@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+<nav class="crumbs" aria-label="You are here"><ol><li><a href="/">Start</a></li><li>{{ spec.label }}</li></ol></nav>
+<h1>{{ spec.label }}</h1>
+<div class="btns top-actions">
+  {% if spec.can_add %}<a class="btn btn-primary" href="/c/{{ spec.key }}/new">Add {{ 'a' if spec.singular[0] not in 'aeiou' else 'an' }} {{ spec.singular }}</a>{% endif %}
+</div>
+<form class="filter" method="get" action="/c/{{ spec.key }}" role="search">
+  <label class="lbl" for="q">Search by name or title</label>
+  <input type="text" id="q" name="q" value="{{ query }}">
+  <label class="check"><input type="checkbox" name="samples" value="1" {% if only_samples %}checked{% endif %}> Only sample entries</label>
+  <button class="btn" type="submit">Show</button>
+</form>
+
+{% if items %}
+<table class="data">
+  <thead><tr><th scope="col">{{ spec.field(spec.title_field).label }}</th><th scope="col">Order</th><th scope="col">Notes</th><th scope="col"><span class="sr">Action</span></th></tr></thead>
+  <tbody>
+  {% for item in items %}
+    <tr>
+      <td><a href="/c/{{ spec.key }}/{{ item.id }}">{{ item.title }}</a></td>
+      <td>{{ item.order }}</td>
+      <td>
+        {% if item.sample %}<span class="badge badge-sample">Sample</span>{% endif %}
+        {% for problem in item.problems %}<span class="badge badge-error" title="{{ problem }}">Needs fixing</span>{% endfor %}
+      </td>
+      <td><a href="/c/{{ spec.key }}/{{ item.id }}">Edit</a></td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="note">Nothing is listed here{% if query or only_samples %} for this search{% endif %}.</p>
+{% endif %}
+{% endblock %}

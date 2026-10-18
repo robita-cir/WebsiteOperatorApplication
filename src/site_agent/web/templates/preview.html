@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block content %}
+<nav class="crumbs" aria-label="You are here"><ol>
+  <li><a href="/">Start</a></li>
+  <li><a href="/c/{{ preview.collection }}">{{ spec.label }}</a></li>
+  <li>Review changes</li>
+</ol></nav>
+<p class="eyebrow">Review</p>
+<h1>Review changes before saving</h1>
+<p class="lead">Nothing is saved yet. Each change is listed in plain language. The check runs after you save.</p>
+
+<div class="layout">
+<div>
+  <div class="banner b-info"><div><p><strong>{{ preview.title }}.</strong> {{ preview.changes|length }} change(s). You can undo the change from History.</p></div></div>
+  <h2>What will change</h2>
+  <ul class="changes">
+    {% for change in preview.changes %}<li>{{ change }}</li>{% endfor %}
+  </ul>
+
+  {% if preview.warnings %}
+  <h2>Warnings</h2>
+  <p class="note">Tick each warning to say you have checked it. Approval is not possible until every warning is ticked.</p>
+  <form id="warnings-form" method="post" action="/preview/{{ pid }}/approve">
+    <input type="hidden" name="csrf" value="{{ csrf }}">
+    {% for w in preview.warnings %}
+    <div class="field warn">
+      <label class="check"><input type="checkbox" name="warn_{{ loop.index0 }}" form="approve-form"> I have checked this: {{ w }}</label>
+    </div>
+    {% endfor %}
+  </form>
+  {% endif %}
+</div>
+
+<aside class="side-panel" aria-label="Approve">
+<div class="panel">
+  <div class="panel-head"><h2>Approve</h2></div>
+  <div class="panel-body">
+    <p class="note">Approval records who checked these changes, and when. It is a record, not a signature.</p>
+    {% if not operator %}
+      <div class="banner b-warn"><div><p>Enter your name in <a href="/settings">Settings</a> before you approve.</p></div></div>
+    {% endif %}
+    {% if not approvers %}
+      <div class="banner b-warn"><div><p>No approvers are listed. Ask the technical contact to add names in <a href="/settings">Settings</a>.</p></div></div>
+    {% endif %}
+    <form id="approve-form" method="post" action="/preview/{{ pid }}/approve">
+      <input type="hidden" name="csrf" value="{{ csrf }}">
+      <label class="lbl" for="approver">Approver</label>
+      <span class="hint" id="approver-h">Chosen from the list in Settings.</span>
+      <select id="approver" name="approver" aria-describedby="approver-h" {% if not approvers %}disabled{% endif %}>
+        {% for a in approvers %}<option value="{{ a.name }}">{{ a.name }}{% if a.role %} ({{ a.role }}){% endif %}</option>{% endfor %}
+      </select>
+      <label class="check field"><input type="checkbox" name="statement"> {{ statement }}</label>
+      <div class="btns stacked">
+        <button class="btn btn-primary" type="submit" form="approve-form" {% if not operator or not approvers %}disabled{% endif %}>Approve and save</button>
+        <p class="note">To approve: choose an approver, tick the statement{% if preview.warnings %}, and tick every warning above{% endif %}. The app checks this again when you press the button.</p>
+      </div>
+    </form>
+    <div class="btns stacked">
+      <a class="btn" href="{{ ('/c/' ~ preview.collection ~ '/' ~ preview.record_id) if preview.kind != 'create' else ('/c/' ~ preview.collection ~ '/new') }}?from_preview={{ pid }}">Go back and edit</a>
+      <form method="post" action="/preview/{{ pid }}/discard">
+        <input type="hidden" name="csrf" value="{{ csrf }}">
+        <button class="btn-link" type="submit">Discard these changes</button>
+      </form>
+    </div>
+    {% if operator %}<p class="note">Recorded by {{ operator }}. The date is set when you approve.</p>{% endif %}
+  </div>
+</div>
+</aside>
+</div>
+{% endblock %}

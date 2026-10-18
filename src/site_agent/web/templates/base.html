@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ title }} · CIR website operator</title>
+<link rel="stylesheet" href="{{ url_for('static', path='app.css') }}">
+</head>
+<body>
+<a class="skip" href="#main">Skip to the content</a>
+<header class="top">
+  <span class="brand">Centre for Intelligent Robotics: website operator</span>
+  <span class="where">{{ settings.operator_name and ('Signed in as ' ~ settings.operator_name) or 'Set your name in Settings' }}</span>
+</header>
+<div class="app">
+  <nav class="side" aria-label="Main">
+    <ul>
+      <li><a href="/" {% if current == 'start' %}aria-current="page"{% endif %}>Start</a></li>
+    </ul>
+    {% for group, keys in NAV_GROUPS %}
+      <h2>{{ group }}</h2>
+      <ul>
+        {% for key in keys %}
+          <li><a href="/c/{{ key }}" {% if current == key %}aria-current="page"{% endif %}>{{ SPECS[key].label }}</a></li>
+        {% endfor %}
+      </ul>
+    {% endfor %}
+    <h2>Checks</h2>
+    <ul>
+      <li><a href="/samples" {% if current == 'samples' %}aria-current="page"{% endif %}>Samples and placeholders</a></li>
+      <li><a href="/check" {% if current == 'check' %}aria-current="page"{% endif %}>Check the site</a></li>
+      <li><a href="/launch" {% if current == 'launch' %}aria-current="page"{% endif %}>Launch readiness</a></li>
+      <li><a href="/history" {% if current == 'history' %}aria-current="page"{% endif %}>History</a></li>
+    </ul>
+    <h2>Set up</h2>
+    <ul>
+      <li><a href="/settings" {% if current == 'settings' %}aria-current="page"{% endif %}>Settings</a></li>
+    </ul>
+  </nav>
+  <main id="main" tabindex="-1">
+    {% if msg %}<div class="banner b-info" role="status"><p>{{ msg }}</p></div>{% endif %}
+    {% if err %}<div class="banner b-error" role="alert"><p>{{ err }}</p></div>{% endif %}
+    {% block content %}{% endblock %}
+  </main>
+</div>
+</body>
+</html>

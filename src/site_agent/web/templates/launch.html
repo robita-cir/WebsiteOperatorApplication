@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block content %}
+<p class="eyebrow">Launch</p>
+<h1>Launch readiness</h1>
+<p class="lead">What must be fixed before the site goes public. The technical contact still deploys it, and the content approver and the technical contact sign off the launch.</p>
+
+{% if report.ready %}
+  <div class="banner b-success" role="status"><p><strong>No blockers.</strong> Warnings below are worth reading.</p></div>
+{% else %}
+  <div class="banner b-error" role="alert"><p><strong>Not ready.</strong> {{ report.blockers|length }} blocker(s) must be fixed.</p></div>
+{% endif %}
+
+<h2>Blockers</h2>
+{% if report.blockers %}<ul class="list">{% for b in report.blockers %}<li>{{ b }}</li>{% endfor %}</ul>{% else %}<p class="note">None.</p>{% endif %}
+
+<h2 class="section">Warnings</h2>
+{% if report.warnings %}<ul class="list">{% for w in report.warnings %}<li>{{ w }}</li>{% endfor %}</ul>{% else %}<p class="note">None.</p>{% endif %}
+
+<h2 class="section">Passing</h2>
+<ul class="list">{% for p in report.passes %}<li>{{ p }}</li>{% endfor %}</ul>
+
+<h2 class="section">Sample entries still on the site</h2>
+{% if report.samples %}
+<table class="data">
+  <thead><tr><th scope="col">Collection</th><th scope="col">Entry</th><th scope="col"><span class="sr">Action</span></th></tr></thead>
+  <tbody>{% for key, rid, title in report.samples %}<tr><td>{{ SPECS[key].label }}</td><td>{{ title }}</td><td><a href="/c/{{ key }}/{{ rid }}">Replace or remove</a></td></tr>{% endfor %}</tbody>
+</table>
+{% else %}<p class="note">None.</p>{% endif %}
+{% endblock %}

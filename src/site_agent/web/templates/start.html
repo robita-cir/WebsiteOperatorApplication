@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block content %}
+<p class="eyebrow">Start</p>
+<h1>Website operator</h1>
+<p class="lead">What needs attention, the main actions, and the most recent changes.</p>
+
+{% if report.ready %}
+  <div class="banner b-success" role="status"><p><strong>No blockers.</strong> A technical person still deploys the site.</p></div>
+{% else %}
+  <div class="banner b-warn" role="status"><p><strong>Not ready to launch.</strong> {{ report.blockers|length }} blocker(s) and {{ report.warnings|length }} warning(s). <a href="/launch">See the launch list</a>.</p></div>
+{% endif %}
+
+<div class="cards">
+  <div class="card"><span class="label">Blockers</span><span class="big">{{ report.blockers|length }}</span><span class="hint">Must be fixed before launch</span></div>
+  <div class="card"><span class="label">Sample entries</span><span class="big">{{ sample_count }}</span><span class="hint">Replace or remove before launch</span></div>
+  <div class="card"><span class="label">Last site check</span>
+    {% if last_check %}<span class="big small">{{ 'Passed' if last_check.ok else 'Failed' }}</span><span class="hint">{{ last_check.time }}</span>
+    {% else %}<span class="big small">Not run</span><span class="hint">Run it from Check the site</span>{% endif %}
+  </div>
+</div>
+
+<h2>Main actions</h2>
+<div class="btns">
+  <a class="btn btn-primary" href="/c/people/new">Add a person</a>
+  <a class="btn" href="/c/events/new">Add an event</a>
+  <a class="btn" href="/c/news/new">Add news</a>
+  <a class="btn" href="/c/openings/new">Add an opening</a>
+  <a class="btn" href="/check">Check the site</a>
+</div>
+
+<h2 class="section">Writing helper</h2>
+<div class="panel"><div class="panel-body">
+  <p>{{ model_message }}</p>
+  {% if not model_ok %}<p class="note">The helper is optional. Every form can still be filled in by hand. <a href="/settings">Settings</a> shows the model in use.</p>{% endif %}
+</div></div>
+
+<h2 class="section">Recent changes</h2>
+{% if runs %}
+<table class="data">
+  <thead><tr><th scope="col">When</th><th scope="col">Files</th><th scope="col">Status</th><th scope="col"><span class="sr">Action</span></th></tr></thead>
+  <tbody>
+  {% for run in runs %}
+    <tr>
+      <td>{{ run.time }}</td>
+      <td>{{ run.files|join(', ') }}</td>
+      <td>{% if run.undone %}Undone{% else %}Saved{% endif %}</td>
+      <td>{% if run.can_undo %}<form method="post" action="/history/{{ run.run_id }}/undo"><input type="hidden" name="csrf" value="{{ csrf }}"><button class="btn-link" type="submit">Undo</button></form>{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+<p class="note"><a href="/history">All changes and approvals</a></p>
+{% else %}
+<p class="note">No changes have been saved yet.</p>
+{% endif %}
+{% endblock %}

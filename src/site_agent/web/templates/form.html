@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% macro render_field(f, state, errors) %}
+<div class="field{% if errors.get(f.name) %} is-error{% endif %}">
+  {% if f.kind == 'bool' %}
+    <label class="check"><input type="checkbox" name="{{ f.name }}" {% if state.get(f.name) %}checked{% endif %}> {{ f.label }}</label>
+  {% else %}
+    <label class="lbl" for="f-{{ f.name }}">{{ f.label }} <span class="req">{{ '(required)' if f.required else '(optional)' }}</span></label>
+    {% if f.hint %}<span class="hint" id="h-{{ f.name }}">{{ f.hint }}</span>{% endif %}
+    {% set described = ' aria-describedby="h-' ~ f.name ~ '"' if f.hint else '' %}
+    {% if f.kind == 'choice' %}
+      <select id="f-{{ f.name }}" name="{{ f.name }}"{{ described|safe }}>
+        <option value="">Choose one</option>
+        {% for stored, label in f.choices %}<option value="{{ stored }}" {% if state.get(f.name) == stored %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+    {% elif f.kind in ('list', 'person_list') %}
+      <textarea id="f-{{ f.name }}" name="{{ f.name }}" rows="4"{{ described|safe }}>{{ state.get(f.name, '') }}</textarea>
+    {% elif f.kind == 'long' %}
+      <textarea id="f-{{ f.name }}" name="{{ f.name }}" rows="3"{{ described|safe }}>{{ state.get(f.name, '') }}</textarea>
+    {% else %}
+      <input type="{{ {'date': 'date', 'int': 'number', 'url': 'url', 'email': 'email'}.get(f.kind, 'text') }}" id="f-{{ f.name }}" name="{{ f.name }}" value="{{ state.get(f.name, '') }}"{{ described|safe }}>
+    {% endif %}
+    {% if errors.get(f.name) %}<span class="err">{{ errors[f.name] }}</span>{% endif %}
+  {% endif %}
+</div>
+{% endmacro %}
+{% block content %}
+<nav class="crumbs" aria-label="You are here"><ol>
+  <li><a href="/">Start</a></li>
+  <li><a href="/c/{{ spec.key }}">{{ spec.label }}</a></li>
+  <li>{{ 'Edit' if record_id else 'Add' }}</li>
+</ol></nav>
+<p class="eyebrow">{{ spec.label }}</p>
+<h1>{{ title }}</h1>
+<p class="lead">Nothing is saved until you approve the changes on the next screen.</p>
+
+{% if blockers %}
+  <div class="banner b-error" role="alert"><div><p><strong>Fix these before you can preview:</strong></p><ul>{% for b in blockers %}<li>{{ b }}</li>{% endfor %}</ul></div></div>
+{% endif %}
+{% if warnings %}
+  <div class="banner b-warn"><div><p><strong>Check these:</strong></p><ul>{% for w in warnings %}<li>{{ w }}</li>{% endfor %}</ul></div></div>
+{% endif %}
+{% if dependants %}
+  <div class="banner b-info"><div><p><strong>Named elsewhere on the website:</strong> {{ dependants|join(', ') }}. Changing the name here may break those links.</p></div></div>
+{% endif %}
+
+<div class="layout">
+<div>
+<form method="post" action="{{ '/c/' ~ spec.key ~ '/' ~ record_id if record_id else '/c/' ~ spec.key ~ '/new' }}" id="record-form" novalidate>
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  {% if draft %}<input type="hidden" name="draft_id" value="{{ draft.id }}">{% endif %}
+
+  {% for f in spec.fields %}
+    {% if f.name != 'sample' or record_id %}{{ render_field(f, state, errors) }}{% endif %}
+  {% endfor %}
+
+  {% if spec.body_label %}
+  <div class="field{% if errors.get('body') %} is-error{% endif %}">
+    <label class="lbl" for="f-body">{{ spec.body_label }} <span class="req">(optional)</span></label>
+    <span class="hint">Shown on the page for this {{ spec.singular }}. Keep to short paragraphs.</span>
+    <textarea id="f-body" name="body" rows="9">{{ state.get('body', '') }}</textarea>
+  </div>
+  {% endif %}
+
+  {% if spec.body_label or spec.fields|selectattr('kind', 'equalto', 'long')|list %}
+  <fieldset class="panel facts">
+    <legend>Facts for the writing helper</legend>
+    <p class="hint">Write one fact per line. The helper may only use these facts when it drafts text. Anything else in the draft is flagged.</p>
+    <textarea id="f-facts" name="facts" rows="4" aria-label="Facts for the writing helper">{{ state.get('facts', '') }}</textarea>
+    <div class="btns">
+      {% if spec.body_label %}<button class="btn" type="submit" name="action" value="draft:body">Draft the {{ spec.body_label|lower }}</button>{% endif %}
+      {% for f in spec.fields if f.kind == 'long' %}
+        <button class="btn" type="submit" name="action" value="draft:{{ f.name }}">Draft: {{ f.label|lower }}</button>
+      {% endfor %}
+    </div>
+  </fieldset>
+  {% endif %}
+
+  {% if spec.key == 'events' %}
+  <fieldset class="panel facts">
+    <legend>Fill in from a notice</legend>
+    <p class="hint">Paste the notice you received. The helper reads it and fills in this form. You still check every field.</p>
+    <textarea id="f-notice" name="notice" rows="4" aria-label="The notice to read"></textarea>
+    <div class="btns"><button class="btn" type="submit" name="action" value="notice">Fill in from notice</button></div>
+  </fieldset>
+  {% endif %}
+
+  <div class="btns">
+    <button class="btn btn-primary" type="submit" name="action" value="preview">Preview changes</button>
+    <a class="btn" href="/c/{{ spec.key }}">Cancel</a>
+  </div>
+</form>
+
+{% if record_id and spec.can_archive %}
+<form method="post" action="/c/{{ spec.key }}/{{ record_id }}/remove" class="danger">
+  <input type="hidden" name="csrf" value="{{ csrf }}">
+  <h2>Remove this {{ spec.singular }}</h2>
+  <p class="note">The entry leaves the website after you approve. A copy is kept so the removal can be undone from History.</p>
+  <button class="btn" type="submit">Remove this {{ spec.singular }}…</button>
+</form>
+{% endif %}
+</div>
+
+<aside class="side-panel" aria-label="Draft">
+{% if draft %}
+  <div class="panel">
+    <div class="panel-head"><h2>Draft</h2><span class="badge badge-muted">Not saved</span></div>
+    <div class="panel-body">
+      {% if draft.kind == 'notice' %}
+        <p>The helper filled in the form from the notice. Check each field before you preview.</p>
+      {% else %}
+        <p>Draft ready for {{ draft.section|replace('body', 'the text')|replace('summary', 'the summary') }}. Read it, edit it in the form, then preview.</p>
+      {% endif %}
+      {% for token in draft_pending %}
+        <div class="banner b-error"><div><p><strong>Not in your facts:</strong> "{{ token }}". Remove it from the text, or add it to the facts.</p></div></div>
+      {% endfor %}
+      {% if not draft_pending and draft.unsupported %}
+        <p class="note">The facts now cover everything the draft mentions.</p>
+      {% endif %}
+    </div>
+  </div>
+{% else %}
+  <div class="panel">
+    <div class="panel-head"><h2>Writing helper</h2></div>
+    <div class="panel-body">
+      <p class="note">Write facts in the box below the form, then press a Draft button. The helper never saves anything; you read and approve the text.</p>
+    </div>
+  </div>
+{% endif %}
+</aside>
+</div>
+{% endblock %}

@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<p class="eyebrow">Checks</p>
+<h1>Samples and placeholders</h1>
+<p class="lead">Sample entries are placeholders that show the layout. Replace each one with real content, or remove it. Placeholder words are listed below so none are missed.</p>
+
+<h2>Sample entries</h2>
+{% if items %}
+<table class="data">
+  <thead><tr><th scope="col">Collection</th><th scope="col">Entry</th><th scope="col"><span class="sr">Action</span></th></tr></thead>
+  <tbody>{% for key, rid, title in items %}<tr><td>{{ SPECS[key].label }}</td><td>{{ title }}</td><td><a href="/c/{{ key }}/{{ rid }}">Open</a></td></tr>{% endfor %}</tbody>
+</table>
+{% else %}<p class="note">No sample entries are left.</p>{% endif %}
+
+<h2 class="section">Placeholder words in content</h2>
+{% if hits %}
+<table class="data">
+  <thead><tr><th scope="col">File</th><th scope="col">Line</th><th scope="col">Word</th></tr></thead>
+  <tbody>{% for rel, line, marker in hits %}<tr><td>{{ rel }}</td><td>{{ line }}</td><td><code>{{ marker }}</code></td></tr>{% endfor %}</tbody>
+</table>
+{% else %}<p class="note">None found.</p>{% endif %}
+{% endblock %}
