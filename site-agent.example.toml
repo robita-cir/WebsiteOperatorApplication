@@ -1,0 +1,24 @@
+# Copy this file to site-agent.toml in the website's folder and change what you need.
+# Every key is optional. An unknown key is reported as an error, so a typo does not go unnoticed.
+
+[llm]
+# "ollama" for a local Ollama server, or "openai" for llama.cpp's server, LM Studio and similar.
+provider = "ollama"
+# The model name as the server knows it. See docs/MODELS.md for a choice by RAM.
+model = "qwen2.5:7b"
+base_url = "http://localhost:11434"
+# Seconds to wait for one answer. Raise it on a slow computer.
+timeout_s = 300
+temperature = 0.1
+# Ollama only: the context window requested for each call.
+context_tokens = 8192
+
+[site]
+# Where the content collections are, relative to the website folder.
+content_dir = "src/content"
+# Files the agent may change, as glob patterns. Content only. Code and page files (.astro, .ts, .js, .css, .html)
+# are refused even if listed here: the operator tool never changes site structure.
+writable = ["src/content/**/*.md"]
+# Run after a change is written. Only the site owner sets this; the model never does.
+# For the CIR template, after npm install:
+# check_command = "npm run check"
