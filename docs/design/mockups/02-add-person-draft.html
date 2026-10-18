@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Design mockup: Add a person with draft</title>
+<style>
+:root{color-scheme:light;--paper:#ffffff;--band:#f6f7f9;--ink:#101030;--muted:#4a4f66;--line:#d9dce3;--accent:#17766a;--on-accent:#ffffff;--brand:#30a090;--highlight:#8a5a12;--control-border:#6f7489;--accent-tint:#e3efec;--success-text:#1d6b4f;--success-bg:#e6f2ed;--info-text:#2d4f8e;--info-bg:#e9eef8;--warning-text:#8a5a12;--warning-bg:#f8efe0;--error-text:#a4262c;--error-bg:#fbe9e9;--disabled-text:#6b6f84;--font-display:"Source Serif 4 Variable","Source Serif 4",Georgia,"Times New Roman",serif;--font-sans:"Inter Variable",Inter,system-ui,-apple-system,"Segoe UI",sans-serif;--font-mono:"JetBrains Mono Variable",ui-monospace,Consolas,Menlo,monospace}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:400 16px/1.5 var(--font-sans)}
+h1,h2,h3{font-family:var(--font-display);font-weight:500;letter-spacing:-.01em;margin:0;color:var(--ink)}
+h1{font-size:32px;line-height:38px;margin-bottom:8px}
+h2{font-size:22px;line-height:28px;margin:0 0 12px}
+h3{font-size:18px;line-height:24px;margin:0 0 8px}
+p{margin:0 0 12px}
+a{color:var(--accent);text-underline-offset:3px}
+ul,ol{margin:0;padding:0}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.top{height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;border-bottom:1px solid var(--line)}
+.brand{font:500 15px/1 var(--font-display)}
+.mock{font:600 13px/16px var(--font-mono);text-transform:uppercase;letter-spacing:.08em;color:var(--warning-text);background:var(--warning-bg);border:1px solid var(--warning-text);padding:6px 10px}
+.app{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:calc(100vh - 49px)}
+.side{background:var(--band);border-right:1px solid var(--line);padding:12px 0 24px;position:sticky;top:0;height:calc(100vh - 49px);overflow-y:auto}
+.side h2{font:400 12px/16px var(--font-mono);text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin:16px 16px 4px}
+.side ul{list-style:none}
+.side a{display:block;min-height:32px;padding:6px 16px 6px 13px;color:var(--ink);font-size:14px;line-height:20px;text-decoration:none;border-left:3px solid transparent}
+.side a[aria-current=page]{background:var(--accent-tint);border-left-color:var(--accent);font-weight:600}
+main{padding:32px 40px 48px;max-width:1120px}
+.crumbs ol{display:flex;flex-wrap:wrap;gap:6px;list-style:none;font-size:14px;color:var(--muted);margin-bottom:12px}
+.crumbs li+li::before{content:"/";margin-right:6px;color:var(--muted)}
+.eyebrow{font:400 12px/16px var(--font-mono);text-transform:uppercase;letter-spacing:.1em;color:var(--accent);margin:0 0 8px}
+.lead{color:var(--muted);margin:0 0 24px;max-width:64ch}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,380px);gap:32px;align-items:start}
+.field{margin-bottom:20px}
+.lbl{display:block;font-weight:600;font-size:14px;line-height:20px;margin-bottom:4px}
+.req{font-weight:400;color:var(--muted)}
+.hint{display:block;color:var(--muted);font-size:14px;line-height:20px;margin-bottom:6px}
+input[type=text],select,textarea{width:100%;min-height:40px;padding:8px 12px;font:400 16px/24px var(--font-sans);color:var(--ink);background:var(--paper);border:1px solid var(--control-border);border-radius:0}
+textarea{min-height:96px;resize:vertical}
+.is-error input{border:2px solid var(--error-text);padding:7px 11px}
+.err{display:block;color:var(--error-text);font-weight:600;font-size:14px;line-height:20px;margin-top:6px}
+input[type=checkbox]{width:20px;height:20px;margin:0 8px 0 0;vertical-align:-4px;accent-color:var(--accent)}
+.check{font-size:15px;line-height:24px}
+.check:disabled,.check input:disabled{color:var(--muted)}
+.btns{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:24px}
+.btn{display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:0 16px;font:600 15px/20px var(--font-sans);border:1px solid var(--control-border);background:var(--paper);color:var(--ink);cursor:pointer}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.btn:disabled{background:var(--band);border-color:var(--line);color:var(--disabled-text);cursor:not-allowed}
+.btn-link{border:0;background:none;padding:0 4px;min-height:24px;color:var(--accent);text-decoration:underline;font:500 14px/20px var(--font-sans);cursor:pointer}
+.note{font-size:14px;line-height:20px;color:var(--muted);margin:8px 0 0}
+.panel{border:1px solid var(--line);background:var(--paper)}
+.panel-head{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:14px 16px;border-bottom:1px solid var(--line);background:var(--band)}
+.panel-body{padding:16px}
+.banner{display:flex;gap:10px;padding:10px 12px;border-left:4px solid;margin:0 0 16px;font-size:15px;line-height:22px}
+.banner strong{font-weight:600}
+.b-warn{background:var(--warning-bg);border-color:var(--warning-text)}
+.b-error{background:var(--error-bg);border-color:var(--error-text)}
+.b-info{background:var(--info-bg);border-color:var(--info-text)}
+.badge{display:inline-flex;align-items:center;font:400 12px/16px var(--font-mono);text-transform:uppercase;letter-spacing:.08em;padding:3px 10px;border:1px solid;border-radius:999px;white-space:nowrap}
+.b-sample{color:var(--warning-text);background:var(--warning-bg);border-color:var(--warning-text)}
+.draft-text{border:1px solid var(--line);background:var(--band);padding:12px;font-size:16px;line-height:26px;margin:0 0 16px}
+mark{background:var(--warning-bg);color:var(--ink);border-bottom:2px dashed var(--warning-text);padding:0 2px}
+.warns{list-style:none;margin:0 0 16px;display:grid;gap:8px}
+.warns li{padding:8px 10px;border-left:4px solid;font-size:14px;line-height:20px}
+.w-block{border-color:var(--error-text);background:var(--error-bg)}
+.w-warn{border-color:var(--warning-text);background:var(--warning-bg)}
+.tag{font:600 12px/16px var(--font-sans);text-transform:uppercase;letter-spacing:.04em;margin-right:6px}
+.progress-block{margin-top:20px;border:1px dashed var(--control-border);padding:14px 16px}
+progress{width:100%;height:10px;accent-color:var(--accent);margin:8px 0}
+@media (max-width:1023px){.app{grid-template-columns:1fr}.side{position:static;height:auto}.layout{grid-template-columns:1fr}main{padding:24px 16px}}
+@media (max-width:1199px){.layout{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header class="top">
+  <span class="brand">Centre for Intelligent Robotics: website operator</span>
+  <span class="mock">Design mockup, not the app</span>
+</header>
+<div class="app">
+<nav class="side" aria-label="Main">
+  <ul><li><a href="#">Start</a></li></ul>
+  <h2>Content</h2>
+  <ul>
+    <li><a href="#" aria-current="page">People</a></li>
+    <li><a href="#">Projects</a></li>
+    <li><a href="#">Research directions</a></li>
+    <li><a href="#">Events</a></li>
+    <li><a href="#">News</a></li>
+    <li><a href="#">Job openings</a></li>
+    <li><a href="#">Publications</a></li>
+    <li><a href="#">Partners</a></li>
+    <li><a href="#">Funded programmes</a></li>
+    <li><a href="#">Facilities</a></li>
+    <li><a href="#">Documents</a></li>
+    <li><a href="#">Gallery</a></li>
+  </ul>
+  <h2>Site text</h2>
+  <ul>
+    <li><a href="#">Page wording</a></li>
+    <li><a href="#">Contact and names</a></li>
+    <li><a href="#">Navigation and footer</a></li>
+    <li><a href="#">Legal pages</a></li>
+  </ul>
+  <h2>Checks</h2>
+  <ul>
+    <li><a href="#">Samples and placeholders</a></li>
+    <li><a href="#">Check and preview</a></li>
+    <li><a href="#">History</a></li>
+    <li><a href="#">Launch</a></li>
+  </ul>
+  <h2>Settings</h2>
+  <ul><li><a href="#">Settings</a></li><li><a href="#">Help</a></li></ul>
+</nav>
+
+<main>
+  <nav class="crumbs" aria-label="Breadcrumb"><ol><li><a href="#">People</a></li><li>Add a person</li></ol></nav>
+  <p class="eyebrow">Sample data for review</p>
+  <h1>Add a person</h1>
+  <p class="lead">Enter the facts. The writing helper can draft a biography from them. Nothing is saved until you approve it on the next screen.</p>
+
+  <div class="layout">
+    <form aria-label="Add a person" onsubmit="return false">
+      <div class="field">
+        <label class="lbl" for="name">Name <span class="req">(required)</span></label>
+        <span class="hint" id="name-h">Write the name as it should appear on the website.</span>
+        <input type="text" id="name" value="Example person" aria-describedby="name-h">
+      </div>
+
+      <div class="field">
+        <label class="lbl" for="group">Group</label>
+        <span class="hint" id="group-h">Choose from the list. Groups are fixed by the website.</span>
+        <select id="group" aria-describedby="group-h"><option>Example group A</option><option>Example group B</option></select>
+      </div>
+
+      <div class="field">
+        <label class="lbl" for="role">Role</label>
+        <input type="text" id="role" value="Example role" maxlength="80">
+      </div>
+
+      <div class="field">
+        <label class="lbl" for="dept">Department <span class="req">(optional)</span></label>
+        <input type="text" id="dept" value="Example department" maxlength="120">
+      </div>
+
+      <div class="field is-error">
+        <label class="lbl" for="home">Homepage <span class="req">(optional)</span></label>
+        <span class="hint" id="home-h">A full web address that starts with https://</span>
+        <input type="text" id="home" value="http://example.org/example-person" aria-describedby="home-h home-e" aria-invalid="true">
+        <span class="err" id="home-e">Error: the homepage must start with https://. Change http:// to https://.</span>
+      </div>
+
+      <div class="field">
+        <label class="lbl" for="facts">Facts for the profile</label>
+        <span class="hint" id="facts-h">Three to six short facts. The writing helper uses only these.</span>
+        <textarea id="facts" aria-describedby="facts-h">Leads the Example workshop on sample topics.
+Works with an example partner on sample projects.
+Interests: example topic one, example topic two.</textarea>
+      </div>
+
+      <div class="field">
+        <label class="lbl" for="photo">Photo <span class="req">(optional)</span></label>
+        <span class="hint" id="photo-h">JPG or PNG, at least 800 px tall. Leave empty to show initials.</span>
+        <input type="file" id="photo" accept=".jpg,.jpeg,.png" aria-describedby="photo-h">
+      </div>
+
+      <div class="field">
+        <label class="check"><input type="checkbox" disabled> The person agrees to a photo being published</label>
+        <span class="note">Needed only when a photo is added. Not ticked.</span>
+      </div>
+
+      <div class="btns">
+        <button class="btn" type="button">Draft biography</button>
+        <button class="btn btn-primary" type="button" disabled>Preview</button>
+      </div>
+      <p class="note">Drafting uses the local writing helper and can take up to two minutes on this computer. You can cancel it. <br>Preview is off until the homepage address is corrected and the draft is resolved.</p>
+    </form>
+
+    <aside class="panel" aria-labelledby="draft-h">
+      <div class="panel-head">
+        <h2 id="draft-h" style="font-size:18px;line-height:24px;margin:0">Draft biography</h2>
+        <span class="badge b-sample">Not saved</span>
+      </div>
+      <div class="panel-body">
+        <div class="banner b-warn" role="status"><div><strong>Draft ready, with 2 fact-check items.</strong> Drafted in 41 seconds on the local model.</div></div>
+
+        <p class="note" style="margin:0 0 8px">Draft text. Highlighted words are not in your facts.</p>
+        <p class="draft-text">Example person leads the Example workshop on sample topics. Example person has worked since <mark>2019</mark> with an example partner on sample projects. Their writing covers example topic one and example topic two, and more details are at <mark>example.org</mark>.</p>
+
+        <ul class="warns" aria-label="Draft warnings">
+          <li class="w-block"><span class="tag">Blocks saving</span> Fact check: <strong>2019</strong> is not in your facts. Remove it, or add it to the facts.</li>
+          <li class="w-block"><span class="tag">Blocks saving</span> Fact check: <strong>example.org</strong> is not in your facts. Remove it, or add it to the facts.</li>
+          <li class="w-warn"><span class="tag">Warning</span> Length: 38 words. The target is 80 to 150 words. You can still use it, but check that it reads well.</li>
+        </ul>
+
+        <div class="btns" style="margin-top:0">
+          <button class="btn btn-primary" type="button" disabled>Use this draft</button>
+          <button class="btn" type="button">Draft again</button>
+          <button class="btn-link" type="button">Discard draft</button>
+        </div>
+        <p class="note">&ldquo;Use this draft&rdquo; is available when both fact-check items are removed or confirmed.</p>
+
+        <div class="progress-block" aria-label="Sample progress state for review">
+          <p style="margin:0;font-weight:600;font-size:14px">Sample: while drafting</p>
+          <progress value="23" max="60" aria-label="Drafting progress, 23 of about 60 seconds">23 s</progress>
+          <p class="note" style="margin:0 0 8px">Drafting. 23 seconds so far; this can take up to two minutes.</p>
+          <button class="btn" type="button">Cancel drafting</button>
+        </div>
+      </div>
+    </aside>
+  </div>
+</main>
+</div>
+</body>
+</html>

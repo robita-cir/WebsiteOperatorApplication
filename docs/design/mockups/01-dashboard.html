@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Design mockup: Start screen</title>
+<style>
+:root{color-scheme:light;--paper:#ffffff;--band:#f6f7f9;--ink:#101030;--muted:#4a4f66;--line:#d9dce3;--accent:#17766a;--on-accent:#ffffff;--brand:#30a090;--highlight:#8a5a12;--control-border:#6f7489;--accent-tint:#e3efec;--success-text:#1d6b4f;--success-bg:#e6f2ed;--info-text:#2d4f8e;--info-bg:#e9eef8;--warning-text:#8a5a12;--warning-bg:#f8efe0;--error-text:#a4262c;--error-bg:#fbe9e9;--disabled-text:#6b6f84;--font-display:"Source Serif 4 Variable","Source Serif 4",Georgia,"Times New Roman",serif;--font-sans:"Inter Variable",Inter,system-ui,-apple-system,"Segoe UI",sans-serif;--font-mono:"JetBrains Mono Variable",ui-monospace,Consolas,Menlo,monospace}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:400 16px/1.5 var(--font-sans)}
+h1,h2,h3{font-family:var(--font-display);font-weight:500;letter-spacing:-.01em;margin:0;color:var(--ink)}
+h1{font-size:32px;line-height:38px;margin-bottom:8px}
+h2{font-size:22px;line-height:28px;margin:0 0 12px}
+h3{font-size:18px;line-height:24px;margin:0 0 8px}
+p{margin:0 0 12px}
+a{color:var(--accent);text-underline-offset:3px}
+ul,ol{margin:0;padding:0}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.top{height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;border-bottom:1px solid var(--line)}
+.brand{font:500 15px/1 var(--font-display)}
+.mock{font:600 13px/16px var(--font-mono);text-transform:uppercase;letter-spacing:.08em;color:var(--warning-text);background:var(--warning-bg);border:1px solid var(--warning-text);padding:6px 10px}
+.app{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:calc(100vh - 49px)}
+.side{background:var(--band);border-right:1px solid var(--line);padding:12px 0 24px;position:sticky;top:0;height:calc(100vh - 49px);overflow-y:auto}
+.side h2{font:400 12px/16px var(--font-mono);text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin:16px 16px 4px}
+.side ul{list-style:none}
+.side a{display:block;min-height:32px;padding:6px 16px 6px 13px;color:var(--ink);font-size:14px;line-height:20px;text-decoration:none;border-left:3px solid transparent}
+.side a:hover{background:var(--line)}
+.side a[aria-current=page]{background:var(--accent-tint);border-left-color:var(--accent);font-weight:600}
+main{padding:32px 40px 48px;max-width:1040px}
+.eyebrow{font:400 12px/16px var(--font-mono);text-transform:uppercase;letter-spacing:.1em;color:var(--accent);margin:0 0 8px}
+.lead{color:var(--muted);margin:0 0 24px;max-width:64ch}
+.sec{margin:32px 0}
+.btns{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.btn{display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:0 16px;font:600 15px/20px var(--font-sans);border:1px solid var(--control-border);background:var(--paper);color:var(--ink);text-decoration:none;cursor:pointer}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.btn:disabled{background:var(--band);border-color:var(--line);color:var(--disabled-text);cursor:not-allowed}
+.btn-link{border:0;background:none;padding:0 4px;min-height:24px;color:var(--accent);text-decoration:underline;font:500 14px/20px var(--font-sans);cursor:pointer}
+.banner{display:flex;gap:12px;align-items:flex-start;padding:12px 16px;border-left:4px solid;margin:0 0 20px;color:var(--ink)}
+.banner strong{font-weight:600}
+.b-info{background:var(--info-bg);border-color:var(--info-text)}
+.b-warn{background:var(--warning-bg);border-color:var(--warning-text)}
+.b-error{background:var(--error-bg);border-color:var(--error-text)}
+.b-ok{background:var(--success-bg);border-color:var(--success-text)}
+.tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;list-style:none}
+.tile{border:1px solid var(--line);background:var(--paper);padding:16px}
+.tile .lbl{font:400 12px/16px var(--font-mono);text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:block;margin-bottom:8px}
+.tile .val{font:500 28px/34px var(--font-display);display:block}
+.tile .note{font-size:14px;line-height:20px;color:var(--muted);display:block;margin-top:4px}
+.badge{display:inline-flex;align-items:center;font:400 12px/16px var(--font-mono);text-transform:uppercase;letter-spacing:.08em;padding:3px 10px;border:1px solid;border-radius:999px;white-space:nowrap}
+.b-sample{color:var(--warning-text);background:var(--warning-bg);border-color:var(--warning-text)}
+table{width:100%;border-collapse:collapse;font-size:14px;line-height:20px}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{background:var(--band);font-weight:600;color:var(--ink)}
+td .meta{display:block;color:var(--muted);font-size:13px;line-height:18px}
+.tbl-wrap{border:1px solid var(--line);overflow-x:auto}
+.helper{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;border:1px solid var(--line);padding:14px 16px}
+@media (max-width:1023px){.app{grid-template-columns:1fr}.side{position:static;height:auto}.tiles{grid-template-columns:1fr}main{padding:24px 16px}}
+</style>
+</head>
+<body>
+<header class="top">
+  <span class="brand">Centre for Intelligent Robotics: website operator</span>
+  <span class="mock">Design mockup, not the app</span>
+</header>
+<div class="app">
+<nav class="side" aria-label="Main">
+  <ul>
+    <li><a href="#start" aria-current="page">Start</a></li>
+  </ul>
+  <h2>Content</h2>
+  <ul>
+    <li><a href="#">People</a></li>
+    <li><a href="#">Projects</a></li>
+    <li><a href="#">Research directions</a></li>
+    <li><a href="#">Events</a></li>
+    <li><a href="#">News</a></li>
+    <li><a href="#">Job openings</a></li>
+    <li><a href="#">Publications</a></li>
+    <li><a href="#">Partners</a></li>
+    <li><a href="#">Funded programmes</a></li>
+    <li><a href="#">Facilities</a></li>
+    <li><a href="#">Documents</a></li>
+    <li><a href="#">Gallery</a></li>
+  </ul>
+  <h2>Site text</h2>
+  <ul>
+    <li><a href="#">Page wording</a></li>
+    <li><a href="#">Contact and names</a></li>
+    <li><a href="#">Navigation and footer</a></li>
+    <li><a href="#">Legal pages</a></li>
+  </ul>
+  <h2>Checks</h2>
+  <ul>
+    <li><a href="#">Samples and placeholders</a></li>
+    <li><a href="#">Check and preview</a></li>
+    <li><a href="#">History</a></li>
+    <li><a href="#">Launch</a></li>
+  </ul>
+  <h2>Settings</h2>
+  <ul>
+    <li><a href="#">Settings</a></li>
+    <li><a href="#">Help</a></li>
+  </ul>
+</nav>
+
+<main id="start">
+  <p class="eyebrow">Sample data for review</p>
+  <h1>Start</h1>
+  <p class="lead">What needs attention, recent changes and the main actions. Every name and number on this screen is sample content.</p>
+
+  <div class="banner b-warn" role="status">
+    <div><strong>Not ready to launch.</strong> The last launch check found 3 blockers and 5 warnings. <a href="#">See the launch list</a></div>
+  </div>
+
+  <section class="sec" aria-labelledby="h-status">
+    <h2 id="h-status">Launch status</h2>
+    <ul class="tiles">
+      <li class="tile"><span class="lbl">Blockers</span><span class="val">3</span><span class="note">Must be fixed before launch</span></li>
+      <li class="tile"><span class="lbl">Sample entries</span><span class="val">12</span><span class="note">Replace or remove before launch</span></li>
+      <li class="tile"><span class="lbl">Last build</span><span class="val">3 days ago</span><span class="note">Events may be out of date. <a href="#">Run the build</a></span></li>
+    </ul>
+  </section>
+
+  <section class="sec" aria-labelledby="h-actions">
+    <h2 id="h-actions">Main actions</h2>
+    <div class="btns">
+      <a class="btn btn-primary" href="#">Add a person</a>
+      <a class="btn" href="#">Add an event from a notice</a>
+      <a class="btn" href="#">Check the site</a>
+      <a class="btn" href="#">Open preview</a>
+    </div>
+  </section>
+
+  <section class="sec" aria-labelledby="h-helper">
+    <h2 id="h-helper">Writing helper</h2>
+    <div class="helper">
+      <p style="margin:0"><span class="badge b-sample">Sample</span> <strong style="font-weight:600">Ready.</strong> Last test reply took 4 seconds. The model name is on the Settings screen.</p>
+      <button class="btn" type="button">Check the writing helper</button>
+    </div>
+  </section>
+
+  <section class="sec" aria-labelledby="h-recent">
+    <h2 id="h-recent">Recent changes</h2>
+    <div class="tbl-wrap">
+      <table>
+        <caption class="sr">Recent saved changes, newest first</caption>
+        <thead><tr><th scope="col">When</th><th scope="col">What changed</th><th scope="col">Approved by</th><th scope="col"><span class="sr">Action</span></th></tr></thead>
+        <tbody>
+          <tr>
+            <td>16 Oct 2026<span class="meta">14:20</span></td>
+            <td>Added person: Example person<span class="meta">People</span></td>
+            <td>Example approver</td>
+            <td><button class="btn-link" type="button">Undo</button></td>
+          </tr>
+          <tr>
+            <td>15 Oct 2026<span class="meta">09:05</span></td>
+            <td>Changed the date of Example workshop<span class="meta">Events</span></td>
+            <td>Example approver</td>
+            <td><button class="btn-link" type="button">View</button></td>
+          </tr>
+          <tr>
+            <td>12 Oct 2026<span class="meta">16:48</span></td>
+            <td>Added photo for Example person<span class="meta">People</span></td>
+            <td>Example approver</td>
+            <td><button class="btn-link" type="button">View</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</main>
+</div>
+</body>
+</html>

@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Design mockup: Check result</title>
+<style>
+:root{color-scheme:light;--paper:#ffffff;--band:#f6f7f9;--ink:#101030;--muted:#4a4f66;--line:#d9dce3;--accent:#17766a;--on-accent:#ffffff;--brand:#30a090;--highlight:#8a5a12;--control-border:#6f7489;--accent-tint:#e3efec;--success-text:#1d6b4f;--success-bg:#e6f2ed;--info-text:#2d4f8e;--info-bg:#e9eef8;--warning-text:#8a5a12;--warning-bg:#f8efe0;--error-text:#a4262c;--error-bg:#fbe9e9;--disabled-text:#6b6f84;--font-display:"Source Serif 4 Variable","Source Serif 4",Georgia,"Times New Roman",serif;--font-sans:"Inter Variable",Inter,system-ui,-apple-system,"Segoe UI",sans-serif;--font-mono:"JetBrains Mono Variable",ui-monospace,Consolas,Menlo,monospace}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:400 16px/1.5 var(--font-sans)}
+h1,h2,h3{font-family:var(--font-display);font-weight:500;letter-spacing:-.01em;margin:0;color:var(--ink)}
+h1{font-size:32px;line-height:38px;margin-bottom:8px}
+h2{font-size:22px;line-height:28px;margin:0 0 12px}
+h3{font-size:18px;line-height:24px;margin:0 0 8px}
+p{margin:0 0 12px}
+a{color:var(--accent);text-underline-offset:3px}
+ul,ol{margin:0;padding:0}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.top{height:48px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;border-bottom:1px solid var(--line)}
+.brand{font:500 15px/1 var(--font-display)}
+.mock{font:600 13px/16px var(--font-mono);text-transform:uppercase;letter-spacing:.08em;color:var(--warning-text);background:var(--warning-bg);border:1px solid var(--warning-text);padding:6px 10px}
+.app{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:calc(100vh - 49px)}
+.side{background:var(--band);border-right:1px solid var(--line);padding:12px 0 24px;position:sticky;top:0;height:calc(100vh - 49px);overflow-y:auto}
+.side h2{font:400 12px/16px var(--font-mono);text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin:16px 16px 4px}
+.side ul{list-style:none}
+.side a{display:block;min-height:32px;padding:6px 16px 6px 13px;color:var(--ink);font-size:14px;line-height:20px;text-decoration:none;border-left:3px solid transparent}
+.side a[aria-current=page]{background:var(--accent-tint);border-left-color:var(--accent);font-weight:600}
+main{padding:32px 40px 48px;max-width:1040px}
+.eyebrow{font:400 12px/16px var(--font-mono);text-transform:uppercase;letter-spacing:.1em;color:var(--accent);margin:0 0 8px}
+.lead{color:var(--muted);margin:0 0 24px;max-width:64ch}
+.banner{display:flex;gap:10px;padding:12px 16px;border-left:4px solid;margin:0 0 20px;font-size:15px;line-height:22px}
+.banner strong{font-weight:600}
+.b-error{background:var(--error-bg);border-color:var(--error-text)}
+.b-ok{background:var(--success-bg);border-color:var(--success-text)}
+.b-info{background:var(--info-bg);border-color:var(--info-text)}
+.btns{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:16px 0 0}
+.btn{display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:0 16px;font:600 15px/20px var(--font-sans);border:1px solid var(--control-border);background:var(--paper);color:var(--ink);cursor:pointer}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.problem{border:1px solid var(--error-text);border-left:6px solid var(--error-text);background:var(--paper);padding:20px 22px;margin-bottom:24px}
+.tag{display:inline-flex;align-items:center;font:500 12px/16px var(--font-mono);text-transform:uppercase;letter-spacing:.08em;color:var(--error-text);background:var(--error-bg);padding:4px 8px;margin-bottom:12px}
+.where{list-style:none;display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:15px;line-height:22px;margin:0 0 16px;padding:0}
+.where li+li::before{content:"\203A";margin-right:6px;color:var(--muted)}
+.where li{padding:2px 8px;border:1px solid var(--control-border)}
+.field-name{font-family:var(--font-mono);font-size:14px;line-height:20px;background:var(--band);padding:1px 6px;border:1px solid var(--line)}
+.pair{display:grid;grid-template-columns:150px minmax(0,1fr);gap:8px 16px;font-size:15px;line-height:22px;margin:0}
+.pair dt{font-weight:600}
+.pair dd{margin:0}
+.pass{border:1px solid var(--line);background:var(--band);padding:16px 18px;margin-bottom:24px}
+.pass ul{list-style:none;display:grid;gap:6px;font-size:15px;line-height:22px;margin-top:8px}
+.details{border:1px solid var(--line);padding:12px 16px}
+.details summary{cursor:pointer;font-weight:600;min-height:32px;display:flex;align-items:center}
+.details pre{font:400 13px/20px var(--font-mono);white-space:pre-wrap;overflow-wrap:anywhere;background:var(--band);padding:10px;margin:12px 0 0;border:1px solid var(--line)}
+.status{display:inline-flex;align-items:center;gap:8px;font:600 14px/20px var(--font-sans);padding:4px 10px;border:1px solid var(--error-text);color:var(--error-text);background:var(--error-bg);margin-bottom:16px}
+.sub{font-size:14px;line-height:20px;color:var(--muted);margin:8px 0 0}
+@media (max-width:1023px){.app{grid-template-columns:1fr}.side{position:static;height:auto}main{padding:24px 16px}.pair{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header class="top">
+  <span class="brand">Centre for Intelligent Robotics: website operator</span>
+  <span class="mock">Design mockup, not the app</span>
+</header>
+<div class="app">
+<nav class="side" aria-label="Main">
+  <ul><li><a href="#">Start</a></li></ul>
+  <h2>Content</h2>
+  <ul>
+    <li><a href="#">People</a></li>
+    <li><a href="#">Projects</a></li>
+    <li><a href="#">Research directions</a></li>
+    <li><a href="#">Events</a></li>
+    <li><a href="#">News</a></li>
+    <li><a href="#">Job openings</a></li>
+    <li><a href="#">Publications</a></li>
+    <li><a href="#">Partners</a></li>
+    <li><a href="#">Funded programmes</a></li>
+    <li><a href="#">Facilities</a></li>
+    <li><a href="#">Documents</a></li>
+    <li><a href="#">Gallery</a></li>
+  </ul>
+  <h2>Site text</h2>
+  <ul>
+    <li><a href="#">Page wording</a></li>
+    <li><a href="#">Contact and names</a></li>
+    <li><a href="#">Navigation and footer</a></li>
+    <li><a href="#">Legal pages</a></li>
+  </ul>
+  <h2>Checks</h2>
+  <ul>
+    <li><a href="#">Samples and placeholders</a></li>
+    <li><a href="#" aria-current="page">Check and preview</a></li>
+    <li><a href="#">History</a></li>
+    <li><a href="#">Launch</a></li>
+  </ul>
+  <h2>Settings</h2>
+  <ul><li><a href="#">Settings</a></li><li><a href="#">Help</a></li></ul>
+</nav>
+
+<main>
+  <p class="eyebrow">Sample data for review</p>
+  <h1>Check the site</h1>
+  <p class="lead">Last run: 18 Oct 2026, 09:12. Took 2 minutes 10 seconds. Results are in plain English. Technical details are in the box at the bottom.</p>
+
+  <div class="banner b-error" role="alert">
+    <div><strong>The check did not pass. The site is not ready.</strong> Your last saved change is kept. Fix the problem below, then check again.</div>
+  </div>
+
+  <h2 id="res-h">Result: 1 problem</h2>
+  <section class="problem" aria-labelledby="p1">
+    <span class="tag">Problem 1 of 1 · Blocks launch</span>
+    <h3 id="p1">The homepage of Example person must start with https://</h3>
+
+    <ol class="where" aria-label="Where the problem is">
+      <li>Page: People</li>
+      <li>Record: Example person</li>
+      <li>Field: <span class="field-name">Homepage</span></li>
+    </ol>
+
+    <dl class="pair">
+      <dt>What is wrong</dt>
+      <dd>The address starts with http://. Visitors would be sent to an insecure page.</dd>
+      <dt>What to do</dt>
+      <dd>Open the record, change http:// to https:// in Homepage, then save and check again. Or leave Homepage empty.</dd>
+      <dt>Saved value</dt>
+      <dd>http://example.org/example-person</dd>
+    </dl>
+
+    <div class="btns">
+      <button class="btn btn-primary" type="button">Open Example person</button>
+      <button class="btn" type="button">Undo last change</button>
+      <button class="btn" type="button">Check again</button>
+    </div>
+  </section>
+
+  <section class="pass" aria-labelledby="ok-h">
+    <h2 id="ok-h" style="font-size:18px;line-height:24px">Other checks</h2>
+    <ul>
+      <li>Passed: 143 checks on people, events, news, publications and pages (sample count)</li>
+      <li>Passed: no warnings from the fact check</li>
+    </ul>
+  </section>
+
+  <details class="details">
+    <summary>For the technical contact</summary>
+    <pre>Sample text only. The exact wording and format of the real message are to be confirmed when the check is connected.
+
+src/content/people/example-person.md
+  homepage: must start with https://</pre>
+  </details>
+
+  <div class="btns">
+    <a class="btn" href="#">History</a>
+    <a class="btn" href="#">Open preview</a>
+  </div>
+  <p class="sub">Site status: <span class="status">Not ready</span> until the check passes.</p>
+</main>
+</div>
+</body>
+</html>
