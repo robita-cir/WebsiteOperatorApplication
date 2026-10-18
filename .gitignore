@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+
+# The fixture site has a node_modules folder on purpose (a decoy the tests check for). A global rule would hide it.
+!tests/fixtures/**/node_modules/
+!tests/fixtures/**/node_modules/**
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Agent state inside a site folder (backups and run logs). Keep these out of the website repository.
+.site-agent/
