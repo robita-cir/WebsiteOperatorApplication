@@ -47,6 +47,7 @@ stated.
 | `qwen2.5:7b` (re-run, 20 October 2026) | Same notice, `tests/test_live.py` | Title, kind, date and venue correct | 27 s |
 | `qwen3:8b` | Same notice | Date, venue and kind correct. The title came out in lower case ("annual open day") and the test passed anyway | 251 s |
 | `deepseek-r1:7b` | Same notice | Title, kind, date and venue correct | 436 s |
+| `qwen2.5:7b` | Drafting a biography in the app's drafting code (`draft_section`), five sets of invented facts | Fluent and on topic. **Each draft added claims the facts did not state** (for example "improve patient care and operational efficiency"). The fact check passed all five, because it checks numbers, years, addresses and emails only | 38 s for the first (model loading), then 1.5 to 2 s each |
 | `qwen2.5:7b` | Update an event on the CIR template clone (dry run) | Four fields changed correctly from one instruction | about 4 s |
 | `qwen2.5:7b` and `llama3.2:3b` | Update an event on the example site: the event file and the homepage line that names it | Both produced the same correct change, without the model editing the homepage line | not timed |
 | `qwen2.5:7b` | Model-assisted edit (`--assisted`) on lines that did not name the event | **Unsafe.** Changed "Proposal deadline: 10 March 2026" when asked about a "Save the date" line. The rule added afterwards: unrelated lines are never changed without the operator's opt-in, and the tool lists them | not timed |
@@ -59,14 +60,17 @@ What these results mean:
   than `deepseek-r1:7b`. Those two reasoning models are slow on a 16 GB machine for little gain here, and `qwen3:8b`
   lower-cased a title. Two runs per model is not enough to rank them. The evaluation set in PLANNING.md (M6) is the next
   step.
+- Drafting is fast enough for the operator on this machine, but it is not safe to trust. Each draft added claims the
+  facts did not give, and the fact check does not look for claims. A drafting rule that forbids them, and a check for
+  them, are open decisions (PLANNING.md, section 3, item 7).
 - Changing text in a file by asking the model is not reliable enough to run without a person checking every line. That
   is why the tool replaces known values itself and only asks the model about lines it cannot place.
 - The model is never asked to write YAML. The tool writes it from the validated record.
 
 ## Not yet tested
 
-- Drafting in the app (the biography, summary and description drafts, and the fact check on real facts). The app's
-  tests use a scripted model. Measure it before choosing a default for the app.
+- Drafting quality on real facts, for the biography, summary and description drafts. Timing was measured on invented
+  facts for the biography only. The app's tests use a scripted model.
 
 - Reasoning models (`qwen3:8b`, `deepseek-r1:7b`) for drafting and for more than one notice. Extraction was tried once.
 - Any model on native Windows.

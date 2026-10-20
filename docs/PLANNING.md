@@ -60,8 +60,11 @@ These are known gaps, in the order the team is likely to need them.
 5. **The 90-day clean-up** for removed entries. Copies are kept until someone deletes them.
 6. **Two people at once.** Saves are checked against the file before writing, so a clash is refused rather than
    overwritten. A lock file is not built.
-7. **Drafting time and quality** in the app are not measured. The design says "up to two minutes" until five drafts have
-   been timed on the real machine.
+7. **Drafting quality** is not measured on real notices. Timing is: five drafts on this machine took about 38 s for the
+   first (the model loading) and 1.5 to 2 s each after it. The fact check misses claims the facts do not state. The drafts
+   added phrases such as "improve patient care" with no source. The fact check only looks for numbers, years, web
+   addresses and emails. Reading each draft is the operator's job, and the statement on the form says so. A fix needs a
+   decision: a stricter drafting rule, a claims check, or both.
 8. **History speed.** Each history page re-reads every run. Fine for hundreds of runs; needs an index beyond that.
 9. **Two uses of the old command line** (`add-event` and `update-event` with `--assisted`) remain. The assisted mode is
    off by default and is not in the app.
