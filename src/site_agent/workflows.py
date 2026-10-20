@@ -28,7 +28,15 @@ from site_agent.records import SPECS
 from site_agent.schemas import Event, describe_errors
 from site_agent.site import Site
 from site_agent.substitute import Substitution, replace_on_anchor_lines, search_needles, substitutions_for
-from site_agent.text_utils import excerpt_lines, matching_lines, quote_in_text, ungrounded_fields
+from site_agent.text_utils import (
+    excerpt_lines,
+    fold_text,
+    limit_to_quote,
+    matching_lines,
+    quote_in_text,
+    series_named_in,
+    ungrounded_fields,
+)
 
 JSON_ATTEMPTS = 2
 MAX_INPUT_WORDS = 1500  # a small model loses the thread on a longer notice, so the operator is asked to trim it
@@ -145,11 +153,22 @@ class NoticeReading:
     notes: list[str] = field(default_factory=list)
 
 
-def _source_quote(raw: dict[str, Any], key: str, notice: str) -> bool:
-    """True when the model gave words for `key` and those words are in the notice."""
+def _source_quote(raw: dict[str, Any], key: str, notice: str) -> str | None:
+    """The words the model gave for `key`, when they are in the notice. Otherwise None."""
     sources = raw.get("sources")
     quote = sources.get(key) if isinstance(sources, dict) else None
-    return isinstance(quote, str) and quote_in_text(quote, notice)
+    return quote if isinstance(quote, str) and quote_in_text(quote, notice) else None
+
+
+def _missing_series_note(fields: dict[str, Any], notice: str) -> str | None:
+    """A note when the notice seems to name a series and the record has none (the model often leaves it out)."""
+    if fields.get("series"):
+        return None
+    phrase = series_named_in(notice)
+    # A title such as "Robotics Summer Course" names the event itself, not a series it belongs to.
+    if phrase is None or fold_text(phrase) in fold_text(str(fields.get("title") or "")):
+        return None
+    return f"The notice seems to name a series ('{phrase}') but the series field is empty. Check it."
 
 
 def ground_notice(raw: dict[str, Any], notice: str, today: dt.date) -> NoticeReading:
@@ -175,14 +194,25 @@ def ground_notice(raw: dict[str, Any], notice: str, today: dt.date) -> NoticeRea
     for key in ("date", "endDate"):
         if not fields.get(key) or (key == "date" and resolved is not None):
             continue
-        if not _source_quote(raw, key, notice):
+        if _source_quote(raw, key, notice) is None:
             reading.blockers.append(
                 f"{key}: the notice does not state this date in its own words. "
                 "Check the notice, or edit the event file by hand."
             )
     for key in ("venue", "series"):
-        if fields.get(key) and not _source_quote(raw, key, notice):
+        if not fields.get(key):
+            continue
+        quote = _source_quote(raw, key, notice)
+        if quote is None:
             reading.notes.append(f'{key} "{fields[key]}": the notice does not give this in its own words. Check it.')
+            continue
+        # The value may only be a part of its quote: a model sometimes adds a sentence it read nearby.
+        fields[key], note = limit_to_quote(str(fields[key]), quote, key)
+        if note:
+            reading.notes.append(note)
+    missing = _missing_series_note(fields, notice)
+    if missing:
+        reading.notes.append(missing)
     return reading
 
 

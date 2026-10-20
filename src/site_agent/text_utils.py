@@ -23,17 +23,53 @@ def normalise(text: str) -> str:
     return " ".join(text.casefold().split())
 
 
+def fold_text(value: str) -> str:
+    """NFKC-normalised, case-folded text with runs of whitespace collapsed, for comparing words loosely."""
+    return " ".join(unicodedata.normalize("NFKC", value).casefold().split())
+
+
 def quote_in_text(quote: str, text: str) -> bool:
     """True when `quote` appears in `text`, ignoring case, spacing and look-alike characters such as no-break spaces.
 
     Used to check that words the model says it copied from a notice are really there.
     """
+    wanted = fold_text(quote)
+    return bool(wanted) and wanted in fold_text(text)
 
-    def fold(value: str) -> str:
-        return " ".join(unicodedata.normalize("NFKC", value).casefold().split())
 
-    wanted = fold(quote)
-    return bool(wanted) and wanted in fold(text)
+def limit_to_quote(value: str, quote: str, label: str) -> tuple[str, str | None]:
+    """Keeps a venue or series to the words the notice uses for it. Returns (value, note or None).
+
+    A small model sometimes adds a sentence it read nearby to the value. When the value contains its source quote
+    and is longer, the quote is used instead. A value that is neither part of the quote nor contains it is kept for
+    the operator to judge, with a note.
+    """
+    wanted = fold_text(quote)
+    have = fold_text(value)
+    if not wanted or have in wanted:
+        return value, None
+    if wanted in have:
+        shortened = " ".join(quote.split())
+        return shortened, f"The {label} was shortened to the words the notice uses: '{shortened}'."
+    return value, f"The {label} does not match the words the notice uses ('{quote.strip()}'). Check it."
+
+
+# A capitalised phrase that ends like the name of a series. Only the same line is searched, so a heading and the
+# sentence under it are never joined.
+_SERIES_NAME = re.compile(r"(?<![\w'])(?:[A-Z][\w'&-]*[ \t]+)+(?:Series|Season|Course|Programme[ \t]+series)\b")
+_LEADING_ARTICLE = re.compile(r"^(?:The|A|An|Our|This|Its|Their)[ \t]+")
+
+
+def series_named_in(notice: str) -> str | None:
+    """The first capitalised phrase in the notice that ends in Series, Season, Programme series or Course.
+
+    "The Example Robotics Summer Series is pleased to announce" gives "Example Robotics Summer Series".
+    """
+    for match in _SERIES_NAME.finditer(notice):
+        phrase = _LEADING_ARTICLE.sub("", match.group(0)).strip()
+        if len(phrase.split()) > 1:  # "The Series" alone is not a name
+            return phrase
+    return None
 
 
 def date_variants(day: dt.date) -> list[str]:
