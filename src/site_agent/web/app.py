@@ -14,12 +14,13 @@ from typing import Any
 from urllib.parse import quote, urlencode
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from site_agent.apply import apply_plan, run_check
+from site_agent.apply import apply_plan, run_check, state_dir
 from site_agent.appstate import AppState
 from site_agent.config import Settings, load_settings
 from site_agent.drafting import JobRunner, draft_section, extract_from_notice, model_status, notice_notes
@@ -29,6 +30,7 @@ from site_agent.history import list_runs, undo
 from site_agent.launch import launch_report, placeholder_hits, samples
 from site_agent.llm import ChatClient, make_client
 from site_agent.plan import FileChange, Plan, fingerprint
+from site_agent.preflight import run_preflight
 from site_agent.records import SPECS, Spec, coerce
 from site_agent.repository import Outcome, Repository
 from site_agent.site import Site
@@ -453,6 +455,24 @@ def create_app(site_root: Path, *, llm: ChatClient | None = None, inline_jobs: b
         if fingerprint(changes) != data["fingerprint"]:
             return _redirect(f"/preview/{pid}", err="The text no longer matches what was previewed. Start again.")
         plan = _plan_from(data, changes)
+        if settings.site.check_command:
+            # Off the event loop, because a real site check can take minutes.
+            preflight = await run_in_threadpool(run_preflight, site, plan, settings.site.check_command, state_dir(site))
+            if preflight.status == "failed":
+                state.save_check(
+                    {
+                        "ok": False,
+                        "output": preflight.output,
+                        "command": settings.site.check_command,
+                        "time": dt.datetime.now().isoformat(timespec="minutes"),
+                        "stage": "preflight",
+                    }
+                )
+                return _redirect(
+                    f"/preview/{pid}",
+                    err="The site check failed on a copy with these changes, so nothing was written. "
+                    "The details are on the Check screen.",
+                )
         approval_id = secrets.token_hex(5)
         try:
             result = apply_plan(

@@ -10,11 +10,12 @@ import sys
 from pathlib import Path
 
 from site_agent import __version__
-from site_agent.apply import apply_plan, restore_run, run_check
+from site_agent.apply import apply_plan, restore_run, run_check, state_dir
 from site_agent.config import Settings, load_settings
 from site_agent.errors import SiteAgentError
 from site_agent.llm import ChatClient, LLMError, make_client
 from site_agent.plan import Plan
+from site_agent.preflight import run_preflight
 from site_agent.schemas import COLLECTIONS
 from site_agent.site import Site
 from site_agent.text_utils import MIN_NEEDLE
@@ -67,6 +68,14 @@ def _review_and_apply(site: Site, settings: Settings, plan: Plan, args: argparse
     if not args.apply:
         print("\nDry run: nothing was written. Run again with --apply to write these changes.")
         return 0
+    if settings.site.check_command:
+        preflight = run_preflight(site, plan, settings.site.check_command, state_dir(site))
+        if preflight.status == "failed":
+            print("\nNot written. The site check failed on a copy with these changes.")
+            print(preflight.output)
+            return 1
+        if preflight.status == "skipped":
+            print(f"\n{preflight.reason}")
     if not args.yes and not _confirm(f"Write {len(plan.changes)} file(s) now?"):
         print("Cancelled. Nothing was written.")
         return 1
