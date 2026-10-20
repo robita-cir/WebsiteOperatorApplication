@@ -12,7 +12,7 @@ class FakeLLM:
         self._replies = list(replies)
         self.calls: list[tuple[list[Message], bool]] = []
 
-    def chat(self, messages: list[Message], *, json_mode: bool = False) -> str:
+    def chat(self, messages: list[Message], *, json_mode: bool = False, schema: dict | None = None) -> str:
         self.calls.append((messages, json_mode))
         if not self._replies:
             raise AssertionError("FakeLLM was asked more times than it was scripted for")
