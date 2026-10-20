@@ -8,10 +8,12 @@ provider = "ollama"
 model = "qwen2.5:7b"
 base_url = "http://localhost:11434"
 # Seconds to wait for one answer. Raise it on a slow computer.
-timeout_s = 300
+timeout_s = 600
 temperature = 0.1
 # Ollama only: the context window requested for each call.
 context_tokens = 8192
+# The most tokens the model may write in one answer. Raise it only if long texts come back cut off.
+max_output_tokens = 1200
 
 [site]
 # Where the content collections are, relative to the website folder.
