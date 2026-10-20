@@ -93,6 +93,13 @@ On a copy of commit 23f4878b, with nothing built or installed:
 - Launch readiness also reports the placeholder values in the site settings file, and the three legal pages still marked
   "Draft for review".
 
+## Checks the template does not make
+
+The app's launch screen and its audit also warn about things the template's launch script does not check: an event whose end
+date has passed (on the machine's local date), news that says it is coming up but is dated more than 60 days ago, a homepage or
+news line that gives a different date from the event it names, a photo or PDF that is missing or of the wrong type, and
+placeholder words in the site pages. These are warnings with a place to fix them; none of them changes a content file.
+
 ## Run against the template copy (20 October 2026)
 
 On a copy of commit 23f4878b, installed with `npm ci` under Node 22.23.3 (the template needs 22.12 or newer), on the
