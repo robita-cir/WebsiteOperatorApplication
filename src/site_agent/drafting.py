@@ -14,6 +14,7 @@ import time
 import urllib.request
 import uuid
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any
 
 from site_agent.config import LLMSettings
@@ -51,17 +52,44 @@ def draft_section(llm: ChatClient, spec: Spec, section: str, length_key: str, fa
     return {"text": text, "unsupported": unsupported_tokens(text, facts)}
 
 
-def extract_from_notice(llm: ChatClient, notice: str, today: str) -> dict[str, Any]:
-    """Reads a notice about an event and returns its fields, for the form to fill in. Nothing is saved."""
-    from site_agent.workflows import ask_json
+@dataclass(frozen=True)
+class NoticeResult:
+    fields: dict[str, Any]  # for the form to fill in
+    notes: list[str]  # what the operator should check: unstated dates, places and series, and relative dates
 
-    system = load_prompt("extract_new_event", today=today)
+
+def extract_notice(llm: ChatClient, notice: str, today: str | dt.date) -> NoticeResult:
+    """Reads a notice about an event. Returns the form fields and the notes to show beside them. Nothing is saved.
+
+    A date the notice does not state in its own words is kept in the form, since the operator fills the form in and
+    checks it, but it is listed in the notes. A relative date such as "next Monday" is worked out from today's date.
+    """
+    from site_agent.workflows import ask_json, ground_notice
+
+    day = today if isinstance(today, dt.date) else _parse_day(today)
+    system = load_prompt("extract_new_event", today=day.isoformat())
     raw = ask_json(llm, system, notice)
+    reading = ground_notice(raw, notice, day)
     keep = ("title", "kind", "series", "date", "endDate", "venue", "summary", "body")
     fields = {key: raw.get(key) for key in keep if raw.get(key) not in (None, "")}
+    if reading.fields.get("date"):  # a relative date, worked out here, replaces the model's
+        fields["date"] = reading.fields["date"]
     if isinstance(fields.get("kind"), str):  # the kinds in the form are lower case, as the record rules require
         fields["kind"] = fields["kind"].strip().lower()
-    return fields
+    notes = [*reading.blockers, *reading.notes, *notice_notes(fields, notice)]
+    return NoticeResult(fields, notes)
+
+
+def extract_from_notice(llm: ChatClient, notice: str, today: str) -> dict[str, Any]:
+    """Reads a notice about an event and returns its fields, for the form to fill in. Nothing is saved."""
+    return extract_notice(llm, notice, today).fields
+
+
+def _parse_day(text: str) -> dt.date:
+    try:
+        return dt.date.fromisoformat(text)
+    except ValueError:
+        return dt.date.today()
 
 
 def notice_notes(fields: dict[str, Any], notice: str) -> list[str]:

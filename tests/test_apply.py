@@ -82,7 +82,10 @@ def test_failed_check_after_apply_says_how_to_undo(site, site_dir, capsys):
     )
     notice = site_dir.parent / "notice.txt"
     notice.write_text("Talk on 5 November 2026 in Lab 3, Example City.", encoding="utf-8")
-    reply = '{"title": "Lab Talk", "kind": "talk", "date": "2026-11-05", "venue": "Lab 3, Example City"}'
+    reply = (
+        '{"title": "Lab Talk", "kind": "talk", "date": "2026-11-05", "venue": "Lab 3, Example City",'
+        ' "sources": {"date": "5 November 2026", "venue": "Lab 3, Example City"}}'
+    )
     code = main(
         ["add-event", "--site", str(site_dir), "--from", str(notice), "--apply", "--yes"],
         client=FakeLLM(reply),

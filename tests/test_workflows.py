@@ -14,7 +14,8 @@ NOTICE = "Hands-on Perception Day on 5 November 2026 in Lab 3, Example City. Ope
 ADD_REPLY = (
     '{"title": "Hands-on Perception Day", "kind": "workshop", "series": null, "date": "2026-11-05",'
     ' "endDate": null, "venue": "Lab 3, Example City", "summary": "A day of perception demos.",'
-    ' "body": "Open to all students."}'
+    ' "body": "Open to all students.", "date_phrase": null,'
+    ' "sources": {"date": "5 November 2026", "endDate": null, "venue": "Lab 3, Example City", "series": null}}'
 )
 
 
@@ -60,7 +61,7 @@ def test_add_event_normalises_the_kind_and_ignores_sample(site):
 def test_add_event_without_a_date_says_which_field_is_missing(site):
     reply = '{"title": "Talk", "kind": "talk", "date": null}'
     with pytest.raises(SiteAgentError, match="date:"):
-        plan_add_event(site, FakeLLM(reply), "A talk.", today=TODAY)
+        plan_add_event(site, FakeLLM(reply, reply), "A talk.", today=TODAY)
 
 
 def test_add_event_warns_about_values_not_in_the_notice(site):
@@ -192,3 +193,38 @@ def test_a_venue_change_is_made_on_the_news_line_that_names_the_event(site):
     assert "in Lecture Theatre, Example City." in news.after
     assert "Main Hall" not in news.after
     assert any("next-up.md" in note and "changed automatically" in note for note in plan.notes)
+
+
+def _deadlines_page(site_dir):
+    (site_dir / "src/content/news/deadlines.md").write_text("<p>Save the date: 10 March 2026</p>\n", encoding="utf-8")
+
+
+def test_a_reply_without_edit_blocks_is_asked_once_more_in_the_same_conversation(site, site_dir):
+    _deadlines_page(site_dir)
+    llm = FakeLLM(UPDATE_REPLY, "Sure, I will change the date for you.", SAVE_EDIT)
+    plan = plan_update_event(site, llm, "event-1", UPDATE_INSTRUCTION, today=TODAY, assisted=True)
+
+    assert len(llm.calls) == 3
+    follow_up = llm.calls[2][0]
+    assert follow_up[-1].role == "user"
+    assert follow_up[-1].content == "Reply with SEARCH/REPLACE blocks copied from the excerpt, or NO_CHANGE."
+    assert follow_up[-2].content == "Sure, I will change the date for you."
+    deadlines = next(c for c in plan.changes if c.rel_path == "src/content/news/deadlines.md")
+    assert "Save the date: 14 April 2026" in deadlines.after
+    assert plan.failures == []
+
+
+def test_the_edit_retry_happens_once_and_is_not_repeated(site, site_dir):
+    _deadlines_page(site_dir)
+    llm = FakeLLM(UPDATE_REPLY, "I would change the date.", "Still no blocks.")  # a fourth call would raise
+    plan = plan_update_event(site, llm, "event-1", UPDATE_INSTRUCTION, today=TODAY, assisted=True)
+
+    assert len(llm.calls) == 3
+    assert any("deadlines.md" in failure and "no edit blocks" in failure for failure in plan.failures)
+
+
+def test_no_change_is_accepted_without_a_retry(site, site_dir):
+    _deadlines_page(site_dir)
+    llm = FakeLLM(UPDATE_REPLY, "NO_CHANGE")
+    plan_update_event(site, llm, "event-1", UPDATE_INSTRUCTION, today=TODAY, assisted=True)
+    assert len(llm.calls) == 2

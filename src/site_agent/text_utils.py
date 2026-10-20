@@ -23,6 +23,19 @@ def normalise(text: str) -> str:
     return " ".join(text.casefold().split())
 
 
+def quote_in_text(quote: str, text: str) -> bool:
+    """True when `quote` appears in `text`, ignoring case, spacing and look-alike characters such as no-break spaces.
+
+    Used to check that words the model says it copied from a notice are really there.
+    """
+
+    def fold(value: str) -> str:
+        return " ".join(unicodedata.normalize("NFKC", value).casefold().split())
+
+    wanted = fold(quote)
+    return bool(wanted) and wanted in fold(text)
+
+
 def date_variants(day: dt.date) -> list[str]:
     """The common ways one date is written, so a search finds it whichever style a page uses."""
     return [

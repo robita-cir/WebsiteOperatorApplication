@@ -11,7 +11,8 @@ from site_agent.site import Site
 
 ADD_REPLY = (
     '{"title": "Hands-on Perception Day", "kind": "workshop", "date": "2026-11-05",'
-    ' "venue": "Lab 3, Example City", "summary": "A day of perception demos.", "body": "Open to all students."}'
+    ' "venue": "Lab 3, Example City", "summary": "A day of perception demos.", "body": "Open to all students.",'
+    ' "sources": {"date": "5 November 2026", "venue": "Lab 3, Example City"}}'
 )
 NOTICE = "Hands-on Perception Day on 5 November 2026 in Lab 3, Example City. Open to all students."
 
