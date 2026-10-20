@@ -35,15 +35,7 @@ def reply(**overrides) -> str:
 
 
 class RecordingLLM(FakeLLM):
-    """FakeLLM that also keeps the schema each call was given."""
-
-    def __init__(self, *replies: str) -> None:
-        super().__init__(*replies)
-        self.schemas: list[dict | None] = []
-
-    def chat(self, messages, *, json_mode=False, schema=None):
-        self.schemas.append(schema)
-        return super().chat(messages, json_mode=json_mode, schema=schema)
+    """FakeLLM. The base class already keeps the schema each call was given, in `schemas`."""
 
 
 @pytest.fixture
