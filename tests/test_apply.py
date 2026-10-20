@@ -1,3 +1,5 @@
+import json
+
 import pytest
 
 from site_agent.apply import apply_plan, read_run, restore_plan, restore_run
@@ -77,9 +79,9 @@ def test_failed_check_after_apply_says_how_to_undo(site, site_dir, capsys):
 
     from site_agent.cli import main
 
-    (site_dir / "site-agent.toml").write_text(
-        f'[site]\ncheck_command = "\\"{sys.executable}\\" -c \\"import sys; sys.exit(3)\\""\n', encoding="utf-8"
-    )
+    # Fails only in the real site, where a run log exists after writing, so the check on the copy before writing passes.
+    command = f'"{sys.executable}" -c "import os, sys; sys.exit(3 if os.path.isdir(\'.site-agent/runs\') else 0)"'
+    (site_dir / "site-agent.toml").write_text(f"[site]\ncheck_command = {json.dumps(command)}\n", encoding="utf-8")
     notice = site_dir.parent / "notice.txt"
     notice.write_text("Talk on 5 November 2026 in Lab 3, Example City.", encoding="utf-8")
     reply = (
