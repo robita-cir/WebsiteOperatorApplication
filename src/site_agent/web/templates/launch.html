@@ -1,5 +1,9 @@
 {% extends "base.html" %}
 {% block content %}
+{# Each blocker or warning says who fixes it, and links to the screen where it can be fixed when there is one. #}
+{% macro item(note) -%}
+<li>{{ note }} <span class="note">Who fixes it: {{ note.owner }}.</span>{% if note.link %} <a href="{{ note.link }}">Fix it</a>{% endif %}</li>
+{%- endmacro %}
 <p class="eyebrow">Launch</p>
 <h1>Launch readiness</h1>
 <p class="lead">What must be fixed before the site goes public. The technical contact still deploys it, and the content approver and the technical contact sign off the launch.</p>
@@ -11,10 +15,10 @@
 {% endif %}
 
 <h2>Blockers</h2>
-{% if report.blockers %}<ul class="list">{% for b in report.blockers %}<li>{{ b }}</li>{% endfor %}</ul>{% else %}<p class="note">None.</p>{% endif %}
+{% if report.blockers %}<ul class="list">{% for b in report.blockers %}{{ item(b) }}{% endfor %}</ul>{% else %}<p class="note">None.</p>{% endif %}
 
 <h2 class="section">Warnings</h2>
-{% if report.warnings %}<ul class="list">{% for w in report.warnings %}<li>{{ w }}</li>{% endfor %}</ul>{% else %}<p class="note">None.</p>{% endif %}
+{% if report.warnings %}<ul class="list">{% for w in report.warnings %}{{ item(w) }}{% endfor %}</ul>{% else %}<p class="note">None.</p>{% endif %}
 
 <h2 class="section">Passing</h2>
 <ul class="list">{% for p in report.passes %}<li>{{ p }}</li>{% endfor %}</ul>
