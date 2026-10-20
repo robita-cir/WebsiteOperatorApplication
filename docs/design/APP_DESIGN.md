@@ -1,6 +1,6 @@
 # CIR operator app: design
 
-> **Status note (18 October 2026).** The app is built with FastAPI and Jinja2, not Streamlit (see [DECISIONS D13 and D19](../DECISIONS.md)). The functional design, the approval and undo rules, the palette and the mockups apply as written. Section 9 is kept as a record of the Streamlit assessment.
+> **Status note (18 October 2026).** The app is built with FastAPI and Jinja2, not Streamlit (see [DECISIONS D13 and D19](../DECISIONS.md)). The functional design, the approval and undo rules, the palette and the mockups apply as written. Section 9 is kept as a record of the Streamlit assessment. Step 4 of the draft flow (section 4.1) and E17 describe a tick box for each flagged item. The built app does not offer that tick: saving stays blocked until the item is removed or added to the facts (DECISIONS D20). Cancel stops the save, not the model call: the model finishes in the background and its answer is discarded (DECISIONS D23).
 
 
 **Status:** design for CIR team review. It describes screens, flows and visual rules. It does not change the website or the tool.

@@ -50,7 +50,7 @@ stated.
 | `qwen2.5:7b` | Drafting a biography in the app's drafting code (`draft_section`), five sets of invented facts | Fluent and on topic. **Each draft added claims the facts did not state** (for example "improve patient care and operational efficiency"). The fact check passed all five, because it checks numbers, years, addresses and emails only | 38 s for the first (model loading), then 1.5 to 2 s each |
 | `qwen2.5:7b` | Update an event on the CIR template clone (dry run) | Four fields changed correctly from one instruction | about 4 s |
 | `qwen2.5:7b` and `llama3.2:3b` | Update an event on the example site: the event file and the homepage line that names it | Both produced the same correct change, without the model editing the homepage line | not timed |
-| `qwen2.5:7b` | Model-assisted edit (`--assisted`) on lines that did not name the event | **Unsafe.** Changed "Proposal deadline: 10 March 2026" when asked about a "Save the date" line. The rule added afterwards: unrelated lines are never changed without the operator's opt-in, and the tool lists them | not timed |
+| `qwen2.5:7b` | Model-assisted edit (`--assisted`) on lines that did not name the event | **Unsafe.** Changed "Proposal deadline: 10 March 2026" when asked about a "Save the date" line. The rule added afterwards: unrelated lines are never changed without the operator's opt-in, and the tool lists them. Since 20 October 2026 the code also refuses an edit that changes text the model was not shown, and refuses an update with an edit it cannot place | not timed |
 
 What these results mean:
 
@@ -62,7 +62,7 @@ What these results mean:
   step.
 - Drafting is fast enough for the operator on this machine, but it is not safe to trust. Each draft added claims the
   facts did not give, and the fact check does not look for claims. A drafting rule that forbids them, and a check for
-  them, are open decisions (PLANNING.md, section 3, item 7).
+  them, are open decisions (PLANNING.md, section 6, item 6).
 - Changing text in a file by asking the model is not reliable enough to run without a person checking every line. That
   is why the tool replaces known values itself and only asks the model about lines it cannot place.
 - The model is never asked to write YAML. The tool writes it from the validated record.

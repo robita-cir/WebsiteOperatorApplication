@@ -37,9 +37,11 @@ The screens, from the sidebar:
 
 1. Open a list, for example People, and press **Add**, or open an entry to **Edit**.
 2. Fill in the form. For wording, write the facts in the box at the bottom, then press a **Draft** button. The helper
-   only uses those facts. A number, year or web address it adds that is not in your facts is flagged, and saving is
-   blocked until you remove it from the text or add it to the facts.
-3. For an event, paste the notice into **Fill in from notice**. The form is filled in for you to check.
+   only uses those facts. Any number, year, web address or email in the text that is not in your facts is flagged, and
+   saving is blocked until you remove it from the text or add it to the facts. This applies to the body and to every
+   long text box, including text you type yourself.
+3. For an event, paste the notice into **Fill in from notice**. The notice becomes your facts, the form is filled in for
+   you to check, and any date or place the notice does not state is flagged.
 4. Press **Preview changes**. Read the changes in plain language.
 5. Tick each warning you have checked, choose an approver, tick the statement, and press **Approve and save**.
 6. The change is written, with a backup. If the site has a check command, it runs. To undo, use **History**.
@@ -78,7 +80,8 @@ Then, in the website folder, create `site-agent.toml` from [site-agent.example.t
 sets this value.
 
 Command-line tools for the technical contact: `site-agent scan`, `find`, `restore`, and the older `add-event` and
-`update-event` commands. The app and the command line share the same rules and the same history.
+`update-event` commands. The app and the command line share the same rules and the same history. An update whose model
+edits cannot all be placed safely is not written; the lines are listed so you can edit them by hand.
 
 ## Tests
 

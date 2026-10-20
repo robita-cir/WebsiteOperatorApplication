@@ -59,6 +59,10 @@ Unknown keys are ignored by the site. The tool reports them as warnings.
 - The check command is configured per site. The template's check is `npm run check` (build plus HTML check). It needs
   Node 22.12 or newer and the template's packages installed (`npm install`). The tool does not install them.
 
+- Before a write, every content file that a change touches is checked against its collection's rules: the event schema
+  for events (`schemas.py`), and the table in `records.py` for every other collection. A change that would leave one
+  invalid is not written.
+
 ## Known differences between the template's documents and its code
 
 The template's own documents disagree with the code in several places. The full table is in EDITABLE_SECTIONS.md,

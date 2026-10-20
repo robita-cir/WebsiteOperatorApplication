@@ -139,3 +139,59 @@ clean-up is not built yet (see PLANNING, open items).
 `docs/design/APP_DESIGN.md` names Streamlit. The functional and visual design (flows, states, approval rules, palette,
 mockups) is what the app implements. The widget and theme notes in section 9 of that document do not apply. Section 9.9
 names what is specific to the web framework, for a future move.
+
+
+## D20. Long text is checked against the facts, and is not a source of facts
+
+The fact check applies to the body and to every long text box: summary, description and biography. A draft fills one of
+these boxes, and a person may type into them too. Saving is blocked while a number, year, web address or email in new or
+changed text is not in the facts. On an edit, text that is unchanged is not checked, so an old record is not blocked by a
+rule that did not exist when it was written.
+
+Long text is left out of the facts. Before this change, a summary counted as a fact for itself, so the check could never
+flag a number in it. Numbers match whole items only: "10" is not supported by "2010". A date field also supports its prose
+spellings, such as "5 November 2026".
+
+Why: the first version checked only the body, and a substring match let "10" pass on "2010". Claims are not covered by
+this decision. See PLANNING.md, section 6, item 6.
+
+Consequence: a number typed into a long text box must also be in the facts. The form shows the item, and saving stays
+blocked until it is removed or added.
+
+## D21. A write that fails part way is undone before the error is shown
+
+If a file cannot be written after earlier files in the same plan have been written, every file is put back from its
+backup, and any new file is removed. No run log is written, so the run does not appear in History. The operator is told
+that nothing was written.
+
+Why: before this change the site could be left half changed, with no run to undo, although the backups existed. If a
+restore itself fails, the error names the backup folder, so the files can be put back by hand.
+
+## D22. An update with a model edit that cannot be placed is not written
+
+An assisted edit is applied only when its search text is among the lines the model was shown, and it matches exactly once
+in the file. An edit that does not match, or that would change text outside those lines, is listed as a failure. The
+command line then writes nothing, even with `--yes`, and lists the lines for editing by hand.
+
+Why: the rest of the update may depend on the edit that failed, and a half-applied update is harder to check than a
+refused one.
+
+Consequence: an operator using `--assisted` may need to make one edit by hand and run the update again.
+
+## D23. A cancelled job does not save its result
+
+A background job's save step runs under the job's lock, and only if the job has not been cancelled. Once cancel returns,
+nothing is saved afterwards. The model's answer may still arrive, and it is discarded. The model call itself is not
+stopped.
+
+Why: the operator presses Cancel because they do not want the draft. Before this change the draft was saved anyway and
+appeared later.
+
+## D24. A notice fill keeps the notice as the facts
+
+When a form is filled from a notice, the notice text is placed in the facts box if that box is empty, so the fact checks
+can use it. Dates and places in the filled-in fields that the notice does not state are listed as notes on the draft. The
+kind is lower-cased, as the record rules require.
+
+Why: the notice fill had no grounding notes in the app, although requirement U12 asks for them, and the notice's own
+numbers would otherwise have been flagged.

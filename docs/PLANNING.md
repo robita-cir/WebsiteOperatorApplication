@@ -22,21 +22,21 @@ Decisions from the CIR team so far:
 - Only content changes. Pages, layout, navigation shape and code stay as they are.
 - Native Windows and WSL2 must both work. The tool is a portable bundle.
 
-## 2. Status (18 October 2026)
+## 2. Status (20 October 2026)
 
 | Area | State | Evidence |
 |---|---|---|
 | Web app for the operator (FastAPI, Jinja2) | Built. Every collection, the approval and undo path, the site check, launch readiness, history, samples, settings | `tests/test_web.py`; start with `site-agent-app --site <folder>` |
 | Content rules for all twelve collections | Built. Mirror the template's schema, plus proposed limits (https-only addresses, DOIs without a web prefix, file paths that must exist) | `records.py`. Every one of the template copy's 119 records passes; 99 of them are samples |
-| Approval, fingerprint, undo rules | Built and tested | `tests/test_web.py`, `tests/test_apply.py` |
-| Drafting from facts, fact check, notice to form | Built. Tested with a scripted model only | `drafting.py`, `tests/test_web.py` |
-| Command-line tool (`site-agent`) | Built, events only in the command line | `tests/test_cli.py` |
+| Approval, fingerprint, undo rules | Built and tested. A write that fails part way is undone before the error is shown | `tests/test_web.py`, `tests/test_apply.py` |
+| Drafting from facts, fact check, notice to form | Built. The fact check covers the body and every long text box, and matches whole items. A cancelled draft is not saved. Tested with a scripted model; one model timed ([MODELS.md](MODELS.md)) | `drafting.py`, `factcheck.py`, `tests/test_factcheck.py`, `tests/test_jobs.py`, `tests/test_web.py` |
+| Command-line tool (`site-agent`) | Built, events only in the command line. An update with a model edit that cannot be placed is not written | `tests/test_cli.py` |
 | Writing helper against a real model | Measured for events before the app existed. Drafting in the app is not yet measured | [MODELS.md](MODELS.md) |
 | Native Windows, WSL2 bundle | Not tested on native Windows or on the operator's machine. On the developer's WSL2 machine, an end-to-end run passed on 20 October 2026 | [TEMPLATE_CONTRACT.md](TEMPLATE_CONTRACT.md), "Run against the template copy" |
 | Launch readiness | Built to the template's rules, blockers and warnings. Matches the template's own check on the template copy | `launch.py`, `tests/test_launch.py` |
 | Template changes P1 to P19 | Proposed. None made | [REQUIREMENTS.md](REQUIREMENTS.md) section (e) |
 
-Test suite: 125 pass; one live model test is skipped unless `SITE_AGENT_LIVE=1`. `ruff check src tests` is clean. The test
+Test suite: 142 pass; one live model test is skipped unless `SITE_AGENT_LIVE=1`. `ruff check src tests` is clean. The test
 client is `httpx2`, which Starlette recommends in place of `httpx`.
 
 What was checked against the real template (a copy, never the template itself):
@@ -61,13 +61,12 @@ These are known gaps, in the order the team is likely to need them.
 6. **Two people at once.** Saves are checked against the file before writing, so a clash is refused rather than
    overwritten. A lock file is not built.
 7. **Drafting quality** is not measured on real notices. Timing is: five drafts on this machine took about 38 s for the
-   first (the model loading) and 1.5 to 2 s each after it. The fact check misses claims the facts do not state. The drafts
-   added phrases such as "improve patient care" with no source. The fact check only looks for numbers, years, web
-   addresses and emails. Reading each draft is the operator's job, and the statement on the form says so. A fix needs a
-   decision: a stricter drafting rule, a claims check, or both.
+   first (the model loading) and 1.5 to 2 s each after it. The fact check covers numbers, years, web addresses and emails.
+   It does not cover claims: the drafts added phrases such as "improve patient care" that no fact gives. Reading each
+   draft is the operator's job, and the statement on the form says so. See open decision 6.
 8. **History speed.** Each history page re-reads every run. Fine for hundreds of runs; needs an index beyond that.
-9. **Two uses of the old command line** (`add-event` and `update-event` with `--assisted`) remain. The assisted mode is
-   off by default and is not in the app.
+9. **The old command line** (`add-event` and `update-event`, with `--assisted` as an opt-in) remains. The assisted mode
+   is off by default, is not in the app, and does not write an update that it cannot apply safely.
 
 ## 4. Roadmap
 
@@ -110,12 +109,15 @@ Each has a recommendation. The CIR team decides; the developer records the answe
 4. **Approvers.** Who is on the list, and who keeps it (the technical contact keeps it; the content approver is named).
 5. **Removal copies.** Keep them for 90 days then delete, or keep them until someone deletes them? Recommended: the 90-day
    rule, once M9 is done.
+6. **Claims in drafts.** A draft can add a claim that the facts do not state, and the fact check does not look for
+   claims. Options: a stricter drafting rule in the prompt, a check that each sentence rests on a fact, or both.
+   Recommended: both, tested on real notices (milestone M7). The team decides.
 
 ## 7. Risks
 
 | Risk | Effect | Mitigation |
 |---|---|---|
-| A model writes a plausible wrong date, place or number | A wrong public fact | The fact check flags anything not in the facts and blocks saving while it remains; the preview is read before approval; measured in M7 |
+| A model writes a plausible wrong date, place or number | A wrong public fact | The fact check flags numbers, years, addresses and emails that are not in the facts, and blocks saving while they remain. It does not check claims; the preview is read before approval; measured in M7 |
 | A change is approved and then the file changes | The approval no longer matches the text | Fingerprint check before writing (S11); the write refuses changed files |
 | Undo would overwrite newer work | Lost work | Strict undo rules (S13) |
 | The site build breaks after a write | The site does not build | The check runs after each write; undo is one click |

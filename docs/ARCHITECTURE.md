@@ -27,11 +27,14 @@ src/site_agent/
 ├── schemas.py        The Event model (mirrors the template's schema). COLLECTIONS maps folder name to model.
 ├── frontmatter.py    Reads and writes YAML frontmatter. Changes existing files one line at a time.
 ├── substitute.py     Replaces known old values with new ones, only on lines that name the event.
-├── edits.py          Parses and applies search/replace blocks from the model (assisted mode).
+├── edits.py          Parses and applies search/replace blocks from the model (assisted mode). An edit that changes
+                     text the model was not shown is refused.
 ├── text_utils.py     Slugs, date spellings, line matching, excerpts for the model, grounding warnings.
+├── factcheck.py      The fact check for written text (S14). Used when drafting and when saving.
 ├── plan.py           A plan is a list of file changes plus notes. Renders diffs.
-├── validate.py       Checks content against the schema, before writing and on demand.
-├── apply.py          Writes a plan, keeps backups and a run log, restores a run, runs the check command.
+├── validate.py       Checks content against its collection's rules, before writing and on demand.
+├── apply.py          Writes a plan, keeps backups and a run log, undoes a write that fails part way, restores a run,
+                     runs the check command.
 ├── prompts.py        Loads the prompt texts.
 ├── prompts/          The prompt texts themselves (edit these to tune behaviour; no code change needed).
 ├── errors.py         SiteAgentError: a message for the operator, shown without a traceback.
@@ -84,7 +87,7 @@ find_mentions(old values) across the site, excluding the event file
    │
 for each file (the event file first):
    replace_on_anchor_lines   → only lines containing the old title; reported with line numbers
-   leftovers (lines not changed) → reported; with --assisted, sent to the model as an excerpt
+   leftovers (lines not changed) → reported; with --assisted, sent to the model as an excerpt; edits outside it are refused (S17)
    │
 Plan (changed files + notes) ──► same review and apply path as add-event
 ```
@@ -99,12 +102,14 @@ Each rule has at least one test. If you change code near one of them, keep the t
 | S2 | Writes only inside the site root, and only to content files (`src/content/**/*.md` by default). Code and page file types (`.astro`, `.ts`, `.tsx`, `.js`, `.mjs`, `.cjs`, `.css`, `.html`) are refused even when a configuration lists them. Never `node_modules`, `dist`, `.git`, `.site-agent`. | `Site.resolve`, `Site.is_writable` (code types refused here), `Site.write` | `test_paths_that_leave_the_site_are_refused`, `test_writable_allow_list`, `test_apply_refuses_paths_outside_the_allow_list` |
 | S3 | Every replaced file is copied to a backup first, and each run is logged. | `apply.apply_plan` | `test_apply_writes_backs_up_and_logs_then_restore_undoes_it` |
 | S4 | A file that changed after the plan was made is not overwritten. | `apply.apply_plan` | `test_apply_refuses_a_file_that_changed_after_planning` |
-| S5 | A change that would leave a content file invalid is not written. | `validate.check_plan` (the CLI calls it before the question) | `test_a_plan_that_would_break_an_event_file_is_refused` |
+| S5 | A change that would leave a content file invalid is not written. | `validate.check_plan`, for every content collection (the CLI calls it before the question) | `test_a_plan_that_would_break_an_event_file_is_refused` |
 | S6 | The model never writes frontmatter text; the tool renders it from the validated record. | `workflows.plan_add_event` (`render_document`) | `test_add_event_renders_the_file_from_the_validated_record` |
 | S7 | A model edit is applied only if its search text appears exactly once. | `edits._place` | `test_ambiguous_search_text_is_not_applied`, `test_missing_search_text_is_reported_and_leaves_the_file_alone` |
 | S8 | The check command comes only from `site-agent.toml`. Model text never reaches it. | `apply.run_check` (the config value is its only input) | `test_run_check_reports_success_and_failure` |
 | S9 | Model traffic goes only to the configured `base_url`. | `llm/base.post_json` | `test_ollama_sends_the_chat_request_and_reads_the_reply` |
 | S10 | Lines that show old details but do not name the event are never changed without the operator's opt-in. | `workflows.plan_update_event` | `test_by_default_lines_without_the_event_name_are_reported_not_guessed` |
+| S16 | A write that fails part way is undone before the error is shown. Every file is put back as it was, and no run log is written. | `apply.apply_plan`, `apply._put_back` | `test_a_write_that_fails_part_way_is_undone_and_leaves_no_run` |
+| S17 | An update is not written while one of its model edits cannot be placed, or changes text the model was not shown. The lines are listed for hand editing. | `workflows._ask_model_for_leftovers`, `cli._review_and_apply` | `test_an_update_with_a_model_edit_that_cannot_be_placed_writes_nothing`, `test_model_edit_that_cannot_be_placed_is_reported_not_applied` |
 
 ## Data the tool reads and writes
 
@@ -152,7 +157,7 @@ repository.py        The one place a form becomes a plan. Lists records, checks 
                      the plain-language changes. Blockers stop a save; warnings need a tick before approval.
 appstate.py          Settings (operator name, approvers), previews, drafts, the approval log and the last check.
                      JSON in .site-agent/, written through a temporary file so a crash cannot leave a half file.
-drafting.py          Model drafting: prompts, the fact check, background jobs with cancel, and the model status.
+drafting.py          Model drafting: prompts, background jobs with cancel, and the model status.
 launch.py            Samples, placeholder words, the launch report. Mirrors the template's launch check.
 history.py           Lists runs and decides whether each can be undone (strict rules, see S13).
 ```
@@ -178,7 +183,7 @@ form ──► repository.create/update/archive ──► Outcome (errors, block
 | S11 | An approval applies only to the exact text previewed. The fingerprint is checked before writing. | `plan.fingerprint`, `web/app.py` approve route | `test_a_change_made_after_the_preview_is_refused` |
 | S12 | A save needs an approver from the list, the operator's name in Settings, the statement, and a tick on every warning. | `web/app.py` approve route | `test_approval_needs_an_approver_and_the_operator_name` |
 | S13 | Undo is offered only when no later change touched the same files and each file still holds exactly what the run wrote. The reason is shown otherwise. | `history.undo_status` | `test_undo_refuses_when_the_file_was_edited_afterwards`, `test_an_older_change_cannot_be_undone_before_a_newer_one` |
-| S14 | A draft may use only the facts given. A number, year, address or email it adds that is not in the facts blocks saving while it remains in the text. | `drafting.unsupported_tokens`, `repository._fact_blockers` | `test_draft_items_not_in_the_facts_block_saving_until_resolved` |
+| S14 | Written text may use only the facts given. A number, year, address or email in a draft or in any long text box, when it is new or changed, must appear in the facts as a whole item. Long text is not a fact. Saving is blocked while such an item remains. | `factcheck.fact_problems`, `factcheck.unsupported_tokens`, `repository.create` and `update` | `test_new_long_text_with_an_unsupported_number_is_a_problem`, `test_a_number_is_only_supported_as_a_whole_item`, `test_draft_items_not_in_the_facts_block_saving_until_resolved` |
 | S15 | The app listens on 127.0.0.1 only. It answers only to localhost names. Every change form needs the CSRF token. Redirects stay on this site. Entry names are checked before a file is touched. | `web/server.py`, `TrustedHostMiddleware`, `checked_form`, `_safe_next`, `valid_id` | `test_posting_without_the_form_token_is_refused`, `test_redirects_cannot_leave_the_site`, `test_a_bad_entry_name_cannot_reach_other_folders` |
 
 ### Where the app keeps its records
