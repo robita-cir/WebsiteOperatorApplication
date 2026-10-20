@@ -181,8 +181,8 @@ Consequence: an operator using `--assisted` may need to make one edit by hand an
 ## D23. A cancelled job does not save its result
 
 A background job's save step runs under the job's lock, and only if the job has not been cancelled. Once cancel returns,
-nothing is saved afterwards. The model's answer may still arrive, and it is discarded. The model call itself is not
-stopped.
+nothing is saved afterwards. The model's answer may still arrive, and it is discarded. Since D38 the model call itself is
+stopped as well (this sentence was true before D38).
 
 Why: the operator presses Cancel because they do not want the draft. Before this change the draft was saved anyway and
 appeared later.
@@ -302,3 +302,59 @@ Why: an operator should not have to remember the exact order or accent of a name
 change without changing anything.
 
 Why: the command line was able to overwrite later edits, which breaks the undo rules (D17).
+
+## D38. Replies stream, and a cancel closes the connection
+
+Both model clients ask the server to stream the reply. The job runner tells the client, while the job runs, that the
+operator has cancelled. The client then closes the connection, and the model stops writing. A cancelled job still never runs
+its save step. The job page shows how many characters have arrived, so a long wait is visible.
+
+Limits: a cancel is noticed when the next part of the reply arrives. If the model is silent before its first words (for example
+while it loads or reads a long prompt), the cancel waits for those first words or for the timeout. A cancelled call is logged
+as not successful, with the error "cancelled".
+
+Why: a cancelled draft used to keep the processor busy until the model had written all of its answer, which could take minutes
+on an 8 GB computer.
+
+## D39. The model size is chosen from the computer's memory when the setting is "auto"
+
+The example settings file now says `model = "auto"`. With 12 GB of memory or more, the default `qwen2.5:7b` is used. Below 12 GB,
+`llama3.2:3b` is used. If memory cannot be read, the default is used and the reason says so. An explicit model name in
+`site-agent.toml`, or `--model` on the command line, always wins. The reason is shown by `site-agent scan` and kept on the
+settings. The rounded memory in the reason is shown in whole gigabytes; the 12 GB boundary uses the unrounded value.
+
+Why: a 7B model is too slow and too large for an 8 GB computer, and a 3B model gives weaker output on a 16 GB computer. On the
+ten-gigabyte development machine, "auto" chooses `llama3.2:3b`. Set the model by name to use the larger one there.
+
+## D40. Rewrite and suggest only offer what the operator can check
+
+Two buttons use the model, and neither saves anything. "Rewrite with only your facts" appears in the draft panel when a section
+draft still has items the facts do not give. It rewrites the text now in the form, and the harness checks the new text against
+the facts again. The result is a new draft that the operator reads. "Suggest" appears beside each empty choice field. The model
+must answer with one of the field's own stored values. Anything else gives the plain message "The helper could not pick one of
+the listed options. Choose one yourself." An accepted suggestion only pre-selects the field, and is kept as a draft of kind
+"suggestion" until the operator changes the field.
+
+Why: the operator decides every value. The model is asked for a small, checkable answer, and the harness refuses anything
+that is not one of the allowed values.
+
+## D41. Spelling advice is a warning; line endings are kept
+
+New or changed long text and body are checked against a short table of American spellings with British forms ("organize" is
+"organise"). Each match is one warning in the preview, which the operator ticks like the others. Nothing is blocked. "Program"
+is only flagged as a programme for events, and "license" only as a noun. Tone is not checked by a model: there is no
+measurement of tone yet, and a model judgement would put an unmeasured warning on every save.
+
+A file that uses Windows line endings keeps them when a change is written, and a file with \n endings keeps \n. New files use \n.
+A file that mixes both is treated as Windows endings and normalised when a change is rendered. Restoring a backup gives back the
+exact original bytes.
+
+## D42. Schemas name no regular expressions, and a failed schema request falls back
+
+The reply schema sent to Ollama must not contain a regular expression. Ollama turns the schema into a grammar, and its grammar
+builder crashed the local runner on the `\d` escapes in a date pattern (found on 20 October 2026 with `qwen2.5:7b`). The
+dates are checked by the harness instead. A test fails if a schema sent to the model names a pattern anywhere.
+
+If the server refuses a schema request with HTTP 400, or its runner stops with HTTP 500, the same request is sent once more in
+plain JSON mode. Any other error is reported without a second request.
+

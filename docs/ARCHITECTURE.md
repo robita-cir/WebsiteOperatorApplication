@@ -39,6 +39,8 @@ src/site_agent/
 ├── calllog.py        Logs each model call to the site's state folder: counts and hashes, never the text.
 ├── search.py         Matches every word of a search, in any order, ignoring case and accents.
 ├── explain.py        Plain sentences for the usual failures of a site check. No model is used.
+├── hardware.py       Reads the computer's memory and chooses the model size from it (model = "auto").
+├── style.py          Spelling advice for new text (British forms). Advisory warnings only.
 ├── plan.py           A plan is a list of file changes plus notes. Renders diffs.
 ├── validate.py       Checks content against its collection's rules, before writing and on demand.
 ├── apply.py          Writes a plan, keeps backups and a run log, undoes a write that fails part way, restores a run,
@@ -166,7 +168,7 @@ repository.py        The one place a form becomes a plan. Lists records, checks 
                      the plain-language changes. Blockers stop a save; warnings need a tick before approval.
 appstate.py          Settings (operator name, approvers), previews, drafts, the approval log and the last check.
                      JSON in .site-agent/, written through a temporary file so a crash cannot leave a half file.
-drafting.py          Model drafting: prompts, background jobs with cancel, and the model status.
+drafting.py          Model drafting: prompts, background jobs with cancel, rewrite and suggest, and the model status.
 launch.py            Samples, placeholder words, the launch report. Mirrors the template's launch check.
 history.py           Lists runs and decides whether each can be undone (strict rules, see S13).
 ```

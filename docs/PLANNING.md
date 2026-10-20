@@ -29,19 +29,20 @@ Decisions from the CIR team so far:
 | Web app for the operator (FastAPI, Jinja2) | Built. Every collection, the approval and undo path, the site check, launch readiness, history, samples, settings | `tests/test_web.py`; start with `site-agent-app --site <folder>` |
 | Content rules for all twelve collections | Built. Mirror the template's schema, plus proposed limits (https-only addresses, DOIs without a web prefix, file paths that must exist) | `records.py`. Every one of the template copy's 119 records passes; 99 of them are samples |
 | Approval, fingerprint, undo rules | Built and tested. A write that fails part way is undone before the error is shown. The site check runs on a copy before anything is written | `tests/test_web.py`, `tests/test_apply.py`, `tests/test_preflight.py` |
-| Model calls | Output capped at 1,200 tokens; 600-second call limit; replies in the record's shape where the server allows it; each call logged by count and hash, never the text | `tests/test_llm_clients.py`, `tests/test_llm_calllog.py` |
+| Model calls | Output capped at 1,200 tokens; 600-second limit per read; replies streamed, and a cancel closes the connection; replies in the record's shape where the server allows it, with a plain-JSON retry; each call logged by count and hash, never the text; model size chosen from memory with "auto" | `tests/test_llm_clients.py`, `tests/test_llm_calllog.py`, `tests/test_streaming.py`, `tests/test_hardware.py` |
 | Notices and records | Dates and places must be quoted from the notice; relative dates worked out in code; a rejected record is sent back once; duplicate people and DOIs blocked; proposed limits enforced | `tests/test_grounding.py`, `tests/test_dates.py`, `tests/test_duplicates.py`, `tests/test_limits.py` |
 | References and claims | A publication can be filled from pasted text, with each value checked against the text; draft sentences that the facts do not cover are flagged | `tests/test_reference.py`, `tests/test_claims.py` |
 | Checks and audit | Dates, files and homepage lines are checked on the launch screen and by the audit; placeholders in pages are warnings | `tests/test_checks.py`, `tests/test_audit.py`, `tests/test_imagecheck.py`, `tests/test_launch.py` |
 | Search and check messages | Search matches every word in any order, ignoring accents; a failed check says what went wrong in plain words | `tests/test_search.py`, `tests/test_explain.py` |
-| Drafting from facts, fact check, notice to form | Built. The fact check covers the body and every long text box, and matches whole items. A cancelled draft is not saved. Tested with a scripted model; one model timed ([MODELS.md](MODELS.md)) | `drafting.py`, `factcheck.py`, `tests/test_factcheck.py`, `tests/test_jobs.py`, `tests/test_web.py` |
+| Drafting from facts, fact check, notice to form | Built. The fact check covers the body and every long text box, and matches whole items. A cancelled draft stops and is not saved. Rewrite-with-facts and Suggest buttons (the model never saves). Tested with a scripted model; one model timed and a regression set run ([MODELS.md](MODELS.md)) | `drafting.py`, `factcheck.py`, `tests/test_factcheck.py`, `tests/test_jobs.py`, `tests/test_rephrase.py`, `tests/test_suggest.py`, `tests/test_web.py` |
+| Spelling advice and line endings | British spelling warnings on new text (advisory, ticked like other warnings); CRLF and LF files keep their endings | `tests/test_style.py`, `tests/test_line_endings.py` |
 | Command-line tool (`site-agent`) | Built, events only in the command line. An update with a model edit that cannot be placed is not written. `audit` writes a report; `restore --dry-run` shows what would change | `tests/test_cli.py`, `tests/test_audit.py` |
 | Writing helper against a real model | Measured for events before the app existed. Drafting in the app is not yet measured | [MODELS.md](MODELS.md) |
 | Native Windows, WSL2 bundle | Not tested on native Windows or on the operator's machine. On the developer's WSL2 machine, an end-to-end run passed on 20 October 2026 | [TEMPLATE_CONTRACT.md](TEMPLATE_CONTRACT.md), "Run against the template copy" |
 | Launch readiness | Built to the template's rules, blockers and warnings. Matches the template's own check on the template copy | `launch.py`, `tests/test_launch.py` |
 | Template changes P1 to P19 | Proposed. None made | [REQUIREMENTS.md](REQUIREMENTS.md) section (e) |
 
-Test suite: 142 pass; one live model test is skipped unless `SITE_AGENT_LIVE=1`. `ruff check src tests` is clean. The test
+Test suite: 466 pass; one live model test is skipped unless `SITE_AGENT_LIVE=1`. `ruff check src tests` is clean. The test
 client is `httpx2`, which Starlette recommends in place of `httpx`.
 
 What was checked against the real template (a copy, never the template itself):
@@ -72,13 +73,12 @@ These are known gaps, in the order the team is likely to need them.
 8. **History speed.** Each history page re-reads every run. Fine for hundreds of runs; needs an index beyond that.
 9. **The old command line** (`add-event` and `update-event`, with `--assisted` as an opt-in) remains. The assisted mode
    is off by default, is not in the app, and does not write an update that it cannot apply safely.
-10. **Model call streaming and a real cancel.** A cancelled draft still lets the model finish its answer (D23). Streaming would
-   stop the call early, and is not built.
-11. **Choosing the model by memory.** The model is set by hand in `site-agent.toml`. Choosing it from the machine's memory is
-   not built.
-12. **Rephrasing a blocked draft** from the listed facts, and **suggesting choice values** (kind, type, group) for the operator to accept,
-   are not built.
-13. **Spelling and tone advice** on new text, and **keeping each file's line endings** when writing, are not built.
+10. **Cancel while the model is silent.** Streaming is built (D38), but a cancel waits for the model's first words, or for the
+   timeout, if the model has not begun to write.
+11. **Spelling and tone.** Spelling advice is built (D41). A model tone check is not built, because tone has not been measured.
+12. **Mixed line endings.** A file that mixes Windows and Unix line endings is normalised to Windows endings when it changes.
+13. **Model suggestions on the real notices.** Rewrite and Suggest are tested with a scripted model. Their quality on real
+   drafts and real choice fields has not been measured.
 
 ## 4. Roadmap
 

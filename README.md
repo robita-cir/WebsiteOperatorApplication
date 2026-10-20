@@ -39,7 +39,9 @@ The screens, from the sidebar:
 2. Fill in the form. For wording, write the facts in the box at the bottom, then press a **Draft** button. The helper
    only uses those facts. Any number, year, web address or email in the text that is not in your facts is flagged, and
    saving is blocked until you remove it from the text or add it to the facts. This applies to the body and to every
-   long text box, including text you type yourself.
+   long text box, including text you type yourself. If a draft uses things your facts do not give, press **Rewrite with
+   only your facts** and read the new text. For a choice field that is still empty, **Suggest** proposes one of the listed
+   options; nothing is saved until you approve.
 3. For an event, paste the notice into **Fill in from notice**. The notice becomes your facts, the form is filled in for
    you to check, and any date or place the notice does not state is flagged.
 4. Press **Preview changes**. Read the changes in plain language.
@@ -66,8 +68,8 @@ and a copy is kept, so **History** can restore it.
 
 ## Set up (for the technical contact)
 
-Requirements: Python 3.11 or newer. A local model server, [Ollama](https://ollama.com), with a model installed. See
-[docs/MODELS.md](docs/MODELS.md). Node.js 22.12 or newer and the website's packages, for the site check.
+Requirements: Python 3.11 or newer. A local model server, [Ollama](https://ollama.com), with a model installed. With `model = "auto"` (the default in the
+example file) the model is chosen from the computer's memory. See [docs/MODELS.md](docs/MODELS.md). Node.js 22.12 or newer and the website's packages, for the site check.
 
 ```bash
 python3.12 -m venv .venv

@@ -28,7 +28,7 @@ required.
 .venv/bin/ruff check src tests
 ```
 
-The tests use a scripted model and never call a real one. To run the one live test against a model server:
+The tests use a scripted model and never call a real one. To run the live tests against a model server (the regression set prints a table of results per model):
 
 ```bash
 SITE_AGENT_LIVE=1 SITE_AGENT_MODEL=qwen2.5:7b .venv/bin/pytest -m live -s
