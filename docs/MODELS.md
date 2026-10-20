@@ -71,53 +71,55 @@ What these results mean:
 
 Eight synthetic notices in `tests/regression/`, each with the record it should produce (`tests/regression/expected/`). Run with
 `SITE_AGENT_LIVE=1 SITE_AGENT_MODEL=<model> .venv/bin/python -m pytest -m live -s tests/test_live.py`. The machine is the
-ten-gigabyte WSL2 development computer. Times are for the whole set, including loading the model.
+ten-gigabyte WSL2 development computer. Times are for the whole set, including loading the model. This is the run after the
+last fixes (venue shortening, the missing-series note, the schema without patterns, streaming).
 
-**qwen2.5:7b** (195 seconds for the set)
+**qwen2.5:7b** (280 seconds for the set)
 
 ```
 case                   right  wrong  noted  seconds  result
-list_layout                6      0      0     18.4  ok
-long_notice                6      0      0     31.8  ok
-no_date                    1      0      0     26.0  ok
-one_day_talk               6      0      0     24.6  ok
-programme_with_series      5      1      0     26.5  wrong: series (wanted 'Example Robotics Summer Series', got None)
-relative_date              6      0      2     19.7  ok
-two_day_workshop           6      0      0     22.4  ok
-venue_two_ways             6      0      0     25.1  ok
-total                     42      1      2    194.6  98% of fields right, 0 case(s) raised an error
+list_layout                6      0      0     89.6  ok
+long_notice                6      0      0     44.5  ok
+no_date                    1      0      0     25.7  ok
+one_day_talk               6      0      0     22.9  ok
+programme_with_series      5      1      1     33.2  wrong: series (wanted 'Example Robotics Summer Series', got None)
+relative_date              6      0      2     20.0  ok
+two_day_workshop           6      0      0     22.5  ok
+venue_two_ways             6      0      0     21.0  ok
+total                     42      1      3    279.4  98% of fields right, 0 case(s) raised an error
 per field: title 7/7, kind 7/7, date 7/7, endDate 7/7, venue 7/7, series 6/7, rejected 1/1
 ```
 
-**llama3.2:3b** (138 seconds for the set)
+**llama3.2:3b** (122 seconds for the set)
 
 ```
 case                   right  wrong  noted  seconds  result
-list_layout                6      0      0     50.6  ok
-long_notice                6      0      0     11.8  ok
-no_date                    1      0      0     19.1  ok
-one_day_talk               6      0      0     11.5  ok
-programme_with_series      5      1      0     10.5  wrong: series (wanted 'Example Robotics Summer Series', got None)
-relative_date              6      0      2     11.3  ok
-two_day_workshop           6      0      0      9.6  ok
-venue_two_ways             5      1      0     13.3  wrong: venue (got the venue plus a sentence about a campus map)
-total                     41      2      2    137.6  95% of fields right, 0 case(s) raised an error
-per field: title 7/7, kind 7/7, date 7/7, endDate 7/7, venue 6/7, series 6/7, rejected 1/1
+list_layout                6      0      0     28.5  ok
+long_notice                6      0      0     15.0  ok
+no_date                    1      0      0     21.9  ok
+one_day_talk               6      0      0     12.5  ok
+programme_with_series      5      1      1     12.9  wrong: series (wanted 'Example Robotics Summer Series', got None)
+relative_date              6      0      2     11.5  ok
+two_day_workshop           6      0      0     10.6  ok
+venue_two_ways             6      0      0      8.8  ok
+total                     42      1      3    121.7  98% of fields right, 0 case(s) raised an error
+per field: title 7/7, kind 7/7, date 7/7, endDate 7/7, venue 7/7, series 6/7, rejected 1/1
 ```
 
 What these results show:
 
-- Both models get the date right in every case, including "next Monday", which the code works out from the phrase (D30).
-- Both miss the series name in the programme case. The harness does not flag a missing series, because it only checks values
-  that are present. This is an open limit, not a fixed one.
-- `llama3.2:3b` copied an extra sentence from the notice into the venue. The quote check passed, because the quoted venue is in
-  the notice. The quote check tests that a quote exists; it does not test that the value is exactly the quote.
+- Both models get every date right, including "next Monday", which the code works out from the phrase (D30).
+- Both still miss the series name in the programme case. The harness now notes it (D44), so the operator sees the gap in the
+  preview. The model is not corrected: a missing value is left for the operator.
+- The venue error seen earlier with `llama3.2:3b` (an extra sentence copied from the notice) is fixed by shortening the value to
+  the quoted words (D44).
 - No case raised an error, and no harness or prompt fault was seen in either run.
 - The real runs found a fault that the scripted tests did not: the date pattern in the reply schema made the local runner
   crash (D42). That is fixed, and the schema now names no pattern.
 
-**Automatic choice (D39).** On this ten-gigabyte computer `model = "auto"` chooses `llama3.2:3b`. The results above show the
-larger model is more accurate on venues and slower; choose by name on a computer with more memory.
+**Automatic choice (D39).** On this ten-gigabyte computer `model = "auto"` chooses `llama3.2:3b`. Both models scored the same on
+this set, but `llama3.2:3b` ran in about half the time. The larger model may do better on longer or less regular notices, which
+this set does not test; choose by name on a computer with more memory.
 
 ## Not yet tested
 
