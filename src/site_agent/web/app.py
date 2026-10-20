@@ -23,7 +23,7 @@ from fastapi.templating import Jinja2Templates
 from site_agent.apply import apply_plan, run_check, state_dir
 from site_agent.appstate import AppState
 from site_agent.config import Settings, load_settings
-from site_agent.drafting import JobRunner, draft_section, extract_from_notice, model_status, notice_notes
+from site_agent.drafting import JobRunner, NoticeResult, draft_section, extract_notice, model_status
 from site_agent.errors import SiteAgentError
 from site_agent.explain import explain_check
 from site_agent.factcheck import facts_text, token_in_facts
@@ -107,7 +107,7 @@ def create_app(site_root: Path, *, llm: ChatClient | None = None, inline_jobs: b
 
     def get_llm() -> ChatClient:
         if "llm" not in client_holder:
-            client_holder["llm"] = make_client(settings.llm)
+            client_holder["llm"] = make_client(settings.llm, log_dir=state_dir(site))
         return client_holder["llm"]
 
     app = FastAPI(title="CIR website operator", docs_url=None, redoc_url=None, openapi_url=None)
@@ -276,17 +276,17 @@ def create_app(site_root: Path, *, llm: ChatClient | None = None, inline_jobs: b
         llm = get_llm()
         today = dt.date.today().isoformat()
 
-        def work() -> dict[str, Any]:
-            return extract_from_notice(llm, notice, today)
+        def work() -> NoticeResult:
+            return extract_notice(llm, notice, today)
 
-        def finish(fields: dict[str, Any]) -> str:
+        def finish(reading: NoticeResult) -> str:
             return state.save_draft(
                 {
                     "kind": "notice",
                     "collection": spec.key,
-                    "fields": fields,
+                    "fields": reading.fields,
                     "notice": notice,
-                    "notes": notice_notes(fields, notice),
+                    "notes": reading.notes,
                 }
             )
 

@@ -44,8 +44,9 @@ def _confirm(question: str) -> bool:
     return input(f"{question} [y/N] ").strip().lower() in ("y", "yes")
 
 
-def _llm(settings: Settings, client: ChatClient | None) -> ChatClient:
-    return client if client is not None else make_client(settings.llm)
+def _llm(settings: Settings, client: ChatClient | None, site: Site) -> ChatClient:
+    # Each model call is logged (counts and hashes only, never the text) in the site's state folder.
+    return client if client is not None else make_client(settings.llm, log_dir=state_dir(site))
 
 
 def _review_and_apply(site: Site, settings: Settings, plan: Plan, args: argparse.Namespace, command: str) -> int:
@@ -61,7 +62,8 @@ def _review_and_apply(site: Site, settings: Settings, plan: Plan, args: argparse
     # A model edit that could not be placed safely is never half applied: the whole update waits for a person.
     if plan.failures:
         print(
-            "\nNot written. The model's edits could not all be placed safely. Edit those lines by hand, then try again:"
+            "\nNot written. These changes could not be made safely. "
+            "Fix them by hand, or change the request, then try again:"
         )
         for failure in plan.failures:
             print(f"  {failure}")
@@ -146,7 +148,7 @@ def cmd_find(args: argparse.Namespace, client: ChatClient | None) -> int:
 def cmd_add_event(args: argparse.Namespace, client: ChatClient | None) -> int:
     settings, site = _settings_and_site(args)
     text = _read_input(args.source)
-    plan = plan_add_event(site, _llm(settings, client), text, slug=args.slug)
+    plan = plan_add_event(site, _llm(settings, client, site), text, slug=args.slug)
     return _review_and_apply(site, settings, plan, args, command="add-event")
 
 
@@ -155,7 +157,7 @@ def cmd_update_event(args: argparse.Namespace, client: ChatClient | None) -> int
     instruction = args.instruction if args.instruction is not None else _read_input(args.source)
     if not instruction.strip():
         raise SiteAgentError("the instruction is empty")
-    plan = plan_update_event(site, _llm(settings, client), args.query, instruction, assisted=args.assisted)
+    plan = plan_update_event(site, _llm(settings, client, site), args.query, instruction, assisted=args.assisted)
     return _review_and_apply(site, settings, plan, args, command="update-event")
 
 
@@ -168,7 +170,8 @@ def cmd_restore(args: argparse.Namespace, client: ChatClient | None) -> int:
             raise SiteAgentError(reason)
         actions = restore_plan(site, args.run_id)
         for action, rel in actions:
-            print(f"would {action} {rel}")
+            verb = {"restored": "restore", "recreated": "recreate", "removed": "remove"}.get(action, action)
+            print(f"would {verb} {rel}")
         print(f"Dry run: run {args.run_id} would be undone ({len(actions)} file(s)). Nothing was changed.")
         return 0
     actions = undo(site, args.run_id)  # history.undo refuses a run that later work depends on

@@ -186,7 +186,7 @@ def test_cli_restore_dry_run_lists_actions_and_changes_nothing(site_dir, capsys)
 
     assert main(["restore", run_id, "--site", str(site_dir), "--dry-run"]) == 0
     out = capsys.readouterr().out
-    assert "would restored src/content/news/next-up.md" in out
+    assert "would restore src/content/news/next-up.md" in out
     assert news.read_bytes() == written
     # The run is still undoable afterwards, so the dry run did not mark it undone.
     assert main(["restore", run_id, "--site", str(site_dir)]) == 0

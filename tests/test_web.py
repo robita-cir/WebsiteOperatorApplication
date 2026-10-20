@@ -464,7 +464,9 @@ def test_notice_draft_lowers_the_kind_keeps_the_notice_as_facts_and_flags_what_i
 
     reply = (
         '{"title": "Hands-on Perception Day", "kind": " Workshop ", "date": "2026-11-05", "endDate": null,'
-        ' "venue": "Lab 3, Example City", "summary": "A day of demos.", "body": "Open to all."}'
+        ' "venue": "Lab 3, Example City", "summary": "A day of demos.", "body": "Open to all.",'
+        ' "sources": {"date": "5 November 2026", "endDate": null, "venue": "Lab 3", "series": null},'
+        ' "date_phrase": null}'
     )
     client = make_client(llm=FakeLLM(reply))
     notice = "Perception day on 5 November 2026 in Lab 3."
@@ -482,4 +484,5 @@ def test_notice_draft_lowers_the_kind_keeps_the_notice_as_facts_and_flags_what_i
     draft = json.loads(draft_files[0].read_text(encoding="utf-8"))
     assert draft["fields"]["kind"] == "workshop"
     assert draft["notice"] == notice
-    assert len(draft["notes"]) == 1 and "venue" in draft["notes"][0]
+    assert not any("date" in note for note in draft["notes"])  # the notice gives the date in its own words
+    assert any("venue" in note for note in draft["notes"])

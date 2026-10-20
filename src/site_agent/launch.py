@@ -6,10 +6,12 @@ check cannot see: placeholder wording inside content and configuration files, an
 
 from __future__ import annotations
 
+import datetime as dt
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from site_agent import checks
 from site_agent.appstate import AppState
 from site_agent.records import SPECS
 from site_agent.repository import Repository
@@ -221,4 +223,9 @@ def launch_report(site: Site, repo: Repository, state: AppState) -> Report:
                 "/c/people",
             )
         )
+    # Dates, files and homepage lines (checks.py). The audit runs the same checks.
+    today = dt.date.today()
+    report.warnings += [Note(t, link="/c/events", owner="operator") for t in checks.date_warnings(repo, today)]
+    report.warnings += [Note(t, owner="technical contact") for t in checks.file_warnings(site, repo)]
+    report.warnings += [Note(t, owner="operator") for t in checks.homepage_warnings(site, repo)]
     return report
