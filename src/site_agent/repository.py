@@ -5,6 +5,8 @@ Nothing here writes files. A plan is only written after it is previewed and appr
 
 from __future__ import annotations
 
+import datetime as dt
+import difflib
 from dataclasses import dataclass, field
 from pathlib import PurePosixPath
 from typing import Any
@@ -14,11 +16,15 @@ from site_agent.factcheck import fact_problems
 from site_agent.frontmatter import parse_document
 from site_agent.plan import FileChange, Plan
 from site_agent.records import (
+    FEATURED_PARTNER_LIMIT,
+    FEATURED_PROJECT_LIMIT,
     SPECS,
     Record,
     Spec,
     coerce,
     new_id,
+    normalise_doi,
+    normalise_name,
     plain_changes,
     record_from_text,
     render_changed,
@@ -63,8 +69,12 @@ class Outcome:
 
 
 class Repository:
-    def __init__(self, site: Site) -> None:
+    def __init__(self, site: Site, today: dt.date | None = None) -> None:
         self.site = site
+        self._today = today  # fixed by tests; otherwise the local date at the time of the check
+
+    def today(self) -> dt.date:
+        return self._today or dt.date.today()
 
     # --- lookup -----------------------------------------------------------------------------------
 
@@ -114,17 +124,31 @@ class Repository:
             )
         return sorted(items, key=lambda i: (i.order, i.title.casefold()))
 
-    def _names(self, collection: str, field_name: str) -> set[str]:
+    def _values(self, collection: str, field_name: str) -> dict[str, Any]:
+        """The value of one frontmatter key for each readable file of a collection, by file id."""
         spec = SPECS[collection]
-        names: set[str] = set()
+        found: dict[str, Any] = {}
         for rec_id in self.ids(spec):
             try:
                 data = parse_document(self.site.read(self.rel_path(spec, rec_id))).data
             except (ValueError, OSError, UnicodeDecodeError):
                 continue
             if data.get(field_name):
-                names.add(str(data[field_name]))
-        return names
+                found[rec_id] = data[field_name]
+        return found
+
+    def _names(self, collection: str, field_name: str) -> set[str]:
+        return {str(v) for v in self._values(collection, field_name).values()}
+
+    @staticmethod
+    def _closest(name: str, names: set[str]) -> str:
+        """A hint naming the entries nearest to a name that is not on the site, or an empty string."""
+        # Compare the plain forms so that case, accents and "Last, First" do not hide a close match.
+        by_plain: dict[str, str] = {}
+        for candidate in sorted(names):
+            by_plain.setdefault(normalise_name(candidate), candidate)
+        close = difflib.get_close_matches(normalise_name(name), list(by_plain), n=3, cutoff=0.6)
+        return f" Did you mean: {', '.join(by_plain[c] for c in close)}?" if close else ""
 
     # --- checks across records and files ----------------------------------------------------------
 
@@ -144,10 +168,66 @@ class Repository:
                 people = self._names("people", "name")
                 for name in value:
                     if name not in people:
-                        warnings.append(f'"{name}" is not on the People list, so the name will not link to a profile.')
-            if f.kind == "partner_name" and value and value not in self._names("partners", "name"):
-                warnings.append(f'"{value}" is not on the Partners list.')
+                        warnings.append(
+                            f'"{name}" is not on the People list, so the name will not link to a profile.'
+                            + self._closest(name, people)
+                        )
+            if f.kind == "partner_name" and value:
+                partners = self._names("partners", "name")
+                if value not in partners:
+                    warnings.append(f'"{value}" is not on the Partners list.' + self._closest(value, partners))
         return blockers, warnings
+
+    def duplicates(self, spec: Spec, values: dict[str, Any], own_id: str | None) -> tuple[list[str], list[str]]:
+        """Finds an entry that the new or edited one repeats, not counting itself. Returns (blockers, warnings)."""
+        blockers: list[str] = []
+        warnings: list[str] = []
+        if spec.key == "people" and values.get("name"):
+            wanted = normalise_name(values["name"])
+            for item in self.listing(spec):
+                if item.id != own_id and normalise_name(item.title) == wanted:
+                    blockers.append(
+                        f"A person called {values['name']} is already on the site ({item.id}). "
+                        "Edit that entry instead, or use a different name."
+                    )
+                    break
+        elif spec.key == "publications" and values.get("doi"):
+            wanted = normalise_doi(values["doi"])
+            for rec_id, doi in self._values("publications", "doi").items():
+                if rec_id != own_id and normalise_doi(str(doi)) == wanted:
+                    blockers.append(f"A publication with this DOI is already on the site ({rec_id}).")
+                    break
+        elif spec.key == "events" and values.get("title"):
+            wanted = normalise_name(values["title"])
+            for item in self.listing(spec):
+                if item.id != own_id and normalise_name(item.title) == wanted:
+                    warnings.append(
+                        f"An event called {values['title']} already exists ({item.id}). Check that this is a new event."
+                    )
+                    break
+        return blockers, warnings
+
+    def limit_warnings(self, spec: Spec, values: dict[str, Any], own_id: str | None) -> list[str]:
+        """Proposed limits that do not stop a save but would leave something hidden or out of date."""
+        warnings: list[str] = []
+        limits = {"projects": ("projects", FEATURED_PROJECT_LIMIT), "partners": ("partners", FEATURED_PARTNER_LIMIT)}
+        if spec.key in limits and values.get("featured"):
+            noun, limit = limits[spec.key]
+            others = [i for i, flag in self._values(spec.key, "featured").items() if i != own_id and flag is True]
+            # The homepage shows only `limit` featured entries, so this one is hidden once `limit` others are featured.
+            if len(others) >= limit:
+                words = {4: "four", 6: "six"}.get(limit, str(limit))
+                warnings.append(
+                    f"There are already {words} featured {noun}. Unfeature one first, "
+                    "or this one will not be shown on the homepage."
+                )
+        deadline = values.get("deadline")
+        if spec.key == "openings" and isinstance(deadline, dt.date) and values.get("status") != "closed":
+            if deadline < self.today():
+                warnings.append(
+                    f"This deadline has passed ({deadline.isoformat()}). Check whether the opening should be closed."
+                )
+        return warnings
 
     def dependants(self, spec: Spec, rec_id: str) -> list[str]:
         """Entries in other collections that name this one, for example a project that lists a person."""
@@ -208,7 +288,7 @@ class Repository:
     def create(self, spec: Spec, raw: dict[str, Any], facts: str = "") -> Outcome:
         outcome = Outcome()
         values, outcome.errors, body = coerce(spec, raw)
-        outcome.errors.update(validate_values(spec, values, body))
+        outcome.errors.update(validate_values(spec, values, body, self.today()))
         extra = fact_problems(spec, values, body, facts)
         title = str(values.get(spec.title_field) or "")
         if not title and not outcome.errors.get(spec.title_field):
@@ -216,6 +296,9 @@ class Repository:
         if outcome.errors:
             outcome.values, outcome.body = values, body
             return outcome
+        dup_blockers, dup_warnings = self.duplicates(spec, values, None)
+        extra += dup_blockers
+        outcome.warnings += dup_warnings + self.limit_warnings(spec, values, None)
         rec_id = new_id(spec, title, set(self.ids(spec)))
         rel = self.rel_path(spec, rec_id)
         return self._finish(spec, rel, None, None, lambda: render_new(spec, values, body), values, body, extra, outcome)
@@ -224,7 +307,7 @@ class Repository:
         record = self.load(spec, rec_id)
         outcome = Outcome()
         values, outcome.errors, body = coerce(spec, raw)
-        outcome.errors.update(validate_values(spec, values, body))
+        outcome.errors.update(validate_values(spec, values, body, self.today()))
         if outcome.errors:
             outcome.values, outcome.body = values, body
             return outcome
@@ -232,6 +315,9 @@ class Repository:
         old_values = dict(record.values)
         extra = fact_problems(spec, values, body, facts, old_values, _body_of(before))
         outcome.warnings += self._rename_warnings(spec, rec_id, old_values, values)
+        dup_blockers, dup_warnings = self.duplicates(spec, values, rec_id)
+        extra += dup_blockers
+        outcome.warnings += dup_warnings + self.limit_warnings(spec, values, rec_id)
         return self._finish(
             spec,
             record.rel_path,
