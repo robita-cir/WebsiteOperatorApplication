@@ -21,3 +21,4 @@ Thumbs.db
 
 # Agent state inside a site folder (backups and run logs). Keep these out of the website repository.
 .site-agent/
+
