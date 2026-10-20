@@ -6,6 +6,7 @@ check cannot see: placeholder wording inside content and configuration files, an
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -25,6 +26,14 @@ PLACEHOLDER_MARKERS = (
 )
 LEGAL_PAGES = ("src/pages/accessibility.astro", "src/pages/privacy.astro", "src/pages/terms.astro")
 SITE_CONFIG = "src/config/site.ts"
+STYLEGUIDE_PAGE = "src/pages/styleguide.astro"
+SOCIAL_IMAGE = "public/og-default.png"
+SEARCH_INDEX = "dist/pagefind/pagefind-ui.js"
+# The same patterns as the template's check: an item to complete in legal text, the club link in the site settings,
+# and a portrait line in a person's file.
+OPEN_ITEM = re.compile(r"\[[A-Za-z][^\]]*\]")
+CLUB_URL = re.compile(r"robita[\s\S]*?url:\s*'([^']+)'")
+PHOTO_LINE = re.compile(r"^photo:", re.MULTILINE)
 
 
 @dataclass
@@ -74,6 +83,8 @@ def launch_report(site: Site, repo: Repository, state: AppState) -> Report:
         )
     else:
         report.passes.append("No sample entries remain in the collections that can carry one.")
+    if site.exists(STYLEGUIDE_PAGE):
+        report.blockers.append(f"{STYLEGUIDE_PAGE} is still present. Delete it before launch.")
 
     content_files = [rel for rel in site.iter_text_files() if rel.startswith(site.content_dir + "/")]
     content_hits = placeholder_hits(site, content_files)
@@ -95,6 +106,12 @@ def launch_report(site: Site, repo: Repository, state: AppState) -> Report:
             )
         else:
             report.passes.append("The site settings have no placeholder values.")
+        club = CLUB_URL.search(site.read(SITE_CONFIG))
+        if club and ("github.com" in club.group(1) or "example." in club.group(1)):
+            report.warnings.append(
+                "The student club pointer still goes to a repository or placeholder address. "
+                "Replace it with the club site's live address."
+            )
 
     legal_drafts = [rel for rel in LEGAL_PAGES if site.exists(rel) and "Draft for review" in site.read(rel)]
     if legal_drafts:
@@ -103,6 +120,13 @@ def launch_report(site: Site, repo: Repository, state: AppState) -> Report:
             + ", ".join(Path(rel).name for rel in legal_drafts)
             + ". The institute must approve them first."
         )
+    for rel in LEGAL_PAGES:
+        if not site.exists(rel):
+            continue
+        open_items = OPEN_ITEM.findall(site.read(rel))
+        if open_items:
+            shown = " ".join(open_items[:3]) + (" …" if len(open_items) > 3 else "")
+            report.warnings.append(f"{rel} has {len(open_items)} bracketed placeholder(s) to complete: {shown}")
 
     last = state.last_check()
     if last is None:
@@ -111,4 +135,16 @@ def launch_report(site: Site, repo: Repository, state: AppState) -> Report:
         report.blockers.append("The last site check did not pass. Fix the problem shown on the Check screen.")
     else:
         report.passes.append(f"The last site check passed ({last.get('time', 'time unknown')}).")
+
+    if not site.exists(SOCIAL_IMAGE):
+        report.blockers.append(f"{SOCIAL_IMAGE} is missing. Generate it (see docs/06-handover-checklist.md).")
+    if not site.exists(SEARCH_INDEX):
+        report.warnings.append("No search index in dist/. Run npm run build before checking the site.")
+
+    people = site.collection_files("people")
+    without_photo = [rel for rel in people if not PHOTO_LINE.search(site.read(rel))]
+    if without_photo:
+        report.warnings.append(
+            f"{len(without_photo)} of {len(people)} people entries have no portrait (initials are shown)."
+        )
     return report
