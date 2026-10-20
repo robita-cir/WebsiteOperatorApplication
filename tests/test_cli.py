@@ -3,7 +3,11 @@ from pathlib import Path
 import pytest
 from helpers import FakeLLM
 
+from site_agent.apply import apply_plan
 from site_agent.cli import main
+from site_agent.config import SiteSettings
+from site_agent.plan import FileChange, Plan
+from site_agent.site import Site
 
 ADD_REPLY = (
     '{"title": "Hands-on Perception Day", "kind": "workshop", "date": "2026-11-05",'
@@ -133,3 +137,72 @@ def test_an_update_with_a_model_edit_that_cannot_be_placed_writes_nothing(site_d
     assert "Not written." in capsys.readouterr().out
     assert (site_dir / "src/content/events/event-1.md").read_text(encoding="utf-8") == event_before
     assert (site_dir / "src/content/news/deadlines.md").read_text(encoding="utf-8") == deadlines_before
+
+
+def _update_run(site_dir, capsys, date_text):
+    code = main(
+        [
+            "update-event",
+            "robot learning workshop",
+            "--site",
+            str(site_dir),
+            "--instruction",
+            f"Moved to {date_text}.",
+            "--apply",
+            "--yes",
+        ],
+        client=FakeLLM('{"date": "2026-04-14", "endDate": "2026-04-16"}'),
+    )
+    assert code == 0
+    out = capsys.readouterr().out
+    return next(line.split("Run id: ")[1].strip() for line in out.splitlines() if "Run id:" in line)
+
+
+def test_cli_restore_is_refused_when_a_later_run_edited_the_same_file(site_dir, capsys):
+    news = site_dir / "src/content/news/next-up.md"
+    first = _update_run(site_dir, capsys, "14 to 16 April 2026")
+    # A second run on the same file, as a later approved change would be.
+    site = Site(SiteSettings(root=site_dir))
+    rel = "src/content/news/next-up.md"
+    apply_plan(
+        site,
+        Plan(summary="later", changes=[FileChange(rel, site.read(rel), site.read(rel) + "\nLater note.\n")]),
+        command="test",
+        model="m",
+    )
+    after_later = news.read_bytes()
+
+    assert main(["restore", first, "--site", str(site_dir)]) == 1
+    err = capsys.readouterr().err
+    assert "A later change" in err and "Undo that first" in err
+    assert news.read_bytes() == after_later
+
+
+def test_cli_restore_dry_run_lists_actions_and_changes_nothing(site_dir, capsys):
+    news = site_dir / "src/content/news/next-up.md"
+    run_id = _update_run(site_dir, capsys, "14 to 16 April 2026")
+    written = news.read_bytes()
+
+    assert main(["restore", run_id, "--site", str(site_dir), "--dry-run"]) == 0
+    out = capsys.readouterr().out
+    assert "would restored src/content/news/next-up.md" in out
+    assert news.read_bytes() == written
+    # The run is still undoable afterwards, so the dry run did not mark it undone.
+    assert main(["restore", run_id, "--site", str(site_dir)]) == 0
+
+
+def test_cli_restore_dry_run_gives_the_same_refusal_as_a_real_undo(site_dir, capsys):
+    run_id = _update_run(site_dir, capsys, "14 to 16 April 2026")
+    (site_dir / "src/content/news/next-up.md").write_text("edited by hand\n", encoding="utf-8")
+    assert main(["restore", run_id, "--site", str(site_dir), "--dry-run"]) == 1
+    assert "has been edited since this change" in capsys.readouterr().err
+
+
+def test_cli_restore_with_a_missing_backup_changes_nothing(site_dir, capsys):
+    run_id = _update_run(site_dir, capsys, "14 to 16 April 2026")
+    written = (site_dir / "src/content/news/next-up.md").read_bytes()
+    for backup in (site_dir / ".site-agent" / "backups" / run_id).rglob("*.md"):
+        backup.unlink()
+    assert main(["restore", run_id, "--site", str(site_dir)]) == 1
+    assert "backup" in capsys.readouterr().err
+    assert (site_dir / "src/content/news/next-up.md").read_bytes() == written

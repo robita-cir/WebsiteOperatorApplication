@@ -10,9 +10,10 @@ import sys
 from pathlib import Path
 
 from site_agent import __version__
-from site_agent.apply import apply_plan, restore_run, run_check
+from site_agent.apply import apply_plan, restore_plan, run_check
 from site_agent.config import Settings, load_settings
 from site_agent.errors import SiteAgentError
+from site_agent.history import undo, undo_status
 from site_agent.llm import ChatClient, LLMError, make_client
 from site_agent.plan import Plan
 from site_agent.schemas import COLLECTIONS
@@ -151,7 +152,17 @@ def cmd_update_event(args: argparse.Namespace, client: ChatClient | None) -> int
 
 def cmd_restore(args: argparse.Namespace, client: ChatClient | None) -> int:
     _, site = _settings_and_site(args)
-    actions = restore_run(site, args.run_id)
+    if args.dry_run:
+        # Same refusal as a real undo, so the preview never promises something that would then be refused.
+        can, reason = undo_status(site, args.run_id)
+        if not can:
+            raise SiteAgentError(reason)
+        actions = restore_plan(site, args.run_id)
+        for action, rel in actions:
+            print(f"would {action} {rel}")
+        print(f"Dry run: run {args.run_id} would be undone ({len(actions)} file(s)). Nothing was changed.")
+        return 0
+    actions = undo(site, args.run_id)  # history.undo refuses a run that later work depends on
     for action, rel in actions:
         print(f"{action} {rel}")
     print(f"Run {args.run_id} undone ({len(actions)} file(s)).")
@@ -219,6 +230,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     restore = commands.add_parser("restore", help="undo a run that was written with --apply")
     restore.add_argument("run_id", help="run id printed when the changes were written")
+    restore.add_argument("--dry-run", action="store_true", help="show what would be undone without changing anything")
     _add_common(restore, writes=False)
     restore.set_defaults(handler=cmd_restore)
     return parser

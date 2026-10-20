@@ -1,6 +1,6 @@
 import pytest
 
-from site_agent.apply import apply_plan, restore_run
+from site_agent.apply import apply_plan, read_run, restore_plan, restore_run
 from site_agent.config import SiteSettings
 from site_agent.errors import SiteAgentError
 from site_agent.plan import FileChange, Plan
@@ -116,3 +116,46 @@ def test_a_write_that_fails_part_way_is_undone_and_leaves_no_run(site, site_dir,
     assert (site_dir / "src/content/news/next-up.md").read_bytes() == before
     assert not (site_dir / "src/content/events/new-one.md").exists()
     assert not list((site_dir / ".site-agent" / "runs").glob("*.json"))
+
+
+def test_restore_plan_lists_actions_and_changes_nothing(site, site_dir):
+    plan = Plan(
+        summary="test",
+        changes=[
+            FileChange("src/content/news/next-up.md", site.read("src/content/news/next-up.md"), "changed\n"),
+            FileChange("src/content/events/new-one.md", None, '---\ntitle: "New"\n---\n'),
+        ],
+    )
+    result = apply_plan(site, plan, command="test", model="m")
+    written = (site_dir / "src/content/news/next-up.md").read_bytes()
+
+    assert set(restore_plan(site, result.run_id)) == {
+        ("restored", "src/content/news/next-up.md"),
+        ("removed", "src/content/events/new-one.md"),
+    }
+    assert (site_dir / "src/content/news/next-up.md").read_bytes() == written
+    assert (site_dir / "src/content/events/new-one.md").exists()
+
+
+def test_a_missing_backup_means_restore_changes_no_file(site, site_dir):
+    # Two files, only the second one's backup is gone: the first must not be restored before the error.
+    first, second = "src/content/news/next-up.md", "src/content/events/event-1.md"
+    plan = Plan(
+        summary="test",
+        changes=[FileChange(first, site.read(first), "one\n"), FileChange(second, site.read(second), "two\n")],
+    )
+    result = apply_plan(site, plan, command="test", model="m")
+    (result.backup_dir / second).unlink()
+
+    with pytest.raises(SiteAgentError, match="backup for src/content/events/event-1.md is missing"):
+        restore_run(site, result.run_id)
+    assert (site_dir / first).read_text(encoding="utf-8") == "one\n"
+    assert (site_dir / second).read_text(encoding="utf-8") == "two\n"
+    assert not read_run(site, result.run_id)["undone"]
+
+
+def test_restore_plan_refuses_a_run_already_undone(site, site_dir):
+    result = apply_plan(site, _plan(site, "src/content/news/next-up.md", "changed\n"), command="test", model="m")
+    restore_run(site, result.run_id)
+    with pytest.raises(SiteAgentError, match="already been undone"):
+        restore_plan(site, result.run_id)

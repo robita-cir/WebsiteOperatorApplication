@@ -134,29 +134,44 @@ def read_run(site: Site, run_id: str) -> dict:
     return json.loads(log_path.read_text(encoding="utf-8"))
 
 
-def restore_run(site: Site, run_id: str) -> list[tuple[str, str]]:
-    """Undoes one run: restores replaced and removed files from their backups and removes files the run created.
+def restore_plan(site: Site, run_id: str) -> list[tuple[str, str]]:
+    """What undoing a run would do, as (action, path) pairs, without changing anything.
 
-    Returns (action, path) pairs, where action is 'restored', 'removed' or 'recreated'.
+    Every backup is checked here, before any file is touched, so a missing backup can never leave a run half undone.
+    Action is 'restored', 'recreated' or 'removed'.
     """
-    state = state_dir(site)
     log = read_run(site, run_id)
     if log.get("undone"):
         raise SiteAgentError(f"run {run_id} has already been undone.")
-    backup_dir = state / "backups" / run_id
+    backup_dir = state_dir(site) / "backups" / run_id
     actions: list[tuple[str, str]] = []
     for rel in log["modified"] + log["removed"]:
-        source = backup_dir / rel
-        if not source.exists():
-            raise SiteAgentError(f"the backup for {rel} is missing from {backup_dir}. Restore it by hand.")
-        site.resolve(rel).parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source, site.resolve(rel))
+        if not (backup_dir / rel).is_file():
+            raise SiteAgentError(
+                f"the backup for {rel} is missing from {backup_dir}. Nothing was changed. Restore it by hand."
+            )
         actions.append(("recreated" if rel in log["removed"] else "restored", rel))
-    for rel in log["created"]:
+    actions.extend(("removed", rel) for rel in log["created"])
+    return actions
+
+
+def restore_run(site: Site, run_id: str) -> list[tuple[str, str]]:
+    """Undoes one run: restores replaced and removed files from their backups and removes files the run created.
+
+    Returns the same (action, path) pairs as restore_plan.
+    """
+    actions = restore_plan(site, run_id)  # fails before any change when a backup is missing
+    state = state_dir(site)
+    log = read_run(site, run_id)
+    backup_dir = state / "backups" / run_id
+    for action, rel in actions:
         path = site.resolve(rel)
-        if path.exists():
-            path.unlink()
-        actions.append(("removed", rel))
+        if action == "removed":
+            if path.exists():
+                path.unlink()
+        else:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(backup_dir / rel, path)
     log["undone"] = True
     (state / "runs" / f"{run_id}.json").write_text(
         json.dumps(log, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
