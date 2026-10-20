@@ -67,6 +67,58 @@ What these results mean:
   is why the tool replaces known values itself and only asks the model about lines it cannot place.
 - The model is never asked to write YAML. The tool writes it from the validated record.
 
+## Regression set on the final code (20 October 2026)
+
+Eight synthetic notices in `tests/regression/`, each with the record it should produce (`tests/regression/expected/`). Run with
+`SITE_AGENT_LIVE=1 SITE_AGENT_MODEL=<model> .venv/bin/python -m pytest -m live -s tests/test_live.py`. The machine is the
+ten-gigabyte WSL2 development computer. Times are for the whole set, including loading the model.
+
+**qwen2.5:7b** (195 seconds for the set)
+
+```
+case                   right  wrong  noted  seconds  result
+list_layout                6      0      0     18.4  ok
+long_notice                6      0      0     31.8  ok
+no_date                    1      0      0     26.0  ok
+one_day_talk               6      0      0     24.6  ok
+programme_with_series      5      1      0     26.5  wrong: series (wanted 'Example Robotics Summer Series', got None)
+relative_date              6      0      2     19.7  ok
+two_day_workshop           6      0      0     22.4  ok
+venue_two_ways             6      0      0     25.1  ok
+total                     42      1      2    194.6  98% of fields right, 0 case(s) raised an error
+per field: title 7/7, kind 7/7, date 7/7, endDate 7/7, venue 7/7, series 6/7, rejected 1/1
+```
+
+**llama3.2:3b** (138 seconds for the set)
+
+```
+case                   right  wrong  noted  seconds  result
+list_layout                6      0      0     50.6  ok
+long_notice                6      0      0     11.8  ok
+no_date                    1      0      0     19.1  ok
+one_day_talk               6      0      0     11.5  ok
+programme_with_series      5      1      0     10.5  wrong: series (wanted 'Example Robotics Summer Series', got None)
+relative_date              6      0      2     11.3  ok
+two_day_workshop           6      0      0      9.6  ok
+venue_two_ways             5      1      0     13.3  wrong: venue (got the venue plus a sentence about a campus map)
+total                     41      2      2    137.6  95% of fields right, 0 case(s) raised an error
+per field: title 7/7, kind 7/7, date 7/7, endDate 7/7, venue 6/7, series 6/7, rejected 1/1
+```
+
+What these results show:
+
+- Both models get the date right in every case, including "next Monday", which the code works out from the phrase (D30).
+- Both miss the series name in the programme case. The harness does not flag a missing series, because it only checks values
+  that are present. This is an open limit, not a fixed one.
+- `llama3.2:3b` copied an extra sentence from the notice into the venue. The quote check passed, because the quoted venue is in
+  the notice. The quote check tests that a quote exists; it does not test that the value is exactly the quote.
+- No case raised an error, and no harness or prompt fault was seen in either run.
+- The real runs found a fault that the scripted tests did not: the date pattern in the reply schema made the local runner
+  crash (D42). That is fixed, and the schema now names no pattern.
+
+**Automatic choice (D39).** On this ten-gigabyte computer `model = "auto"` chooses `llama3.2:3b`. The results above show the
+larger model is more accurate on venues and slower; choose by name on a computer with more memory.
+
 ## Not yet tested
 
 - Drafting quality on real facts, for the biography, summary and description drafts. Timing was measured on invented
@@ -74,6 +126,6 @@ What these results mean:
 
 - Reasoning models (`qwen3:8b`, `deepseek-r1:7b`) for drafting and for more than one notice. Extraction was tried once.
 - Any model on native Windows.
-- Long notices (more than about 500 words) and notices in a language other than English.
+- Notices in a language other than English. A notice of about 540 words is in the regression set and passes.
 - The model-assisted edit on `llama3.2:3b`.
 - Many notices in a row, to measure consistency.
