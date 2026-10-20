@@ -181,4 +181,49 @@ def spelling_advice(text: str) -> list[str]:
     return list(sentences.values())
 
 
-__all__ = ["spelling_advice", "RULES", "Rule"]
+# --- tone ---------------------------------------------------------------------------------------------------------
+
+# A short exclamation in a title or caption is judged by the person; the advice is for running text.
+LONG_TEXT_CHARS = 60
+# Runs of capitals that are fine. Anything else of four or more letters reads as shouting.
+ACRONYMS = frozenset({"CIR", "IEEE", "PDF", "DOI", "ACM", "UK", "EU", "USA", "NASA", "ROS", "GPU", "CPU"})
+PROMOTIONAL = (
+    "amazing",
+    "world-class",
+    "best-in-class",
+    "revolutionary",
+    "incredible",
+    "stunning",
+    "unbeatable",
+    "groundbreaking",
+    "game-changing",
+)
+
+_EXCLAMATION = re.compile(r"!(?![\[=])")  # not the start of a Markdown image, and not '!='
+_CAPITALS = re.compile(r"\b[A-Z]{4,}\b")
+_PROMO = re.compile(r"(?<![\w-])(" + "|".join(re.escape(word) for word in PROMOTIONAL) + r")(?![\w-])", re.IGNORECASE)
+
+
+def tone_advice(text: str) -> list[str]:
+    """Plain sentences about tone: exclamation marks, shouting and marketing words. Advice only, never a block."""
+    prose = _prose_only(text)
+    sentences: list[str] = []
+    if len(prose.strip()) >= LONG_TEXT_CHARS and _EXCLAMATION.search(prose):
+        sentences.append(f"Exclamation marks are not used on the site. {CHECK}")
+    shouted: list[str] = []
+    for match in _CAPITALS.finditer(prose):
+        if match.group(0) not in ACRONYMS and match.group(0) not in shouted:
+            shouted.append(match.group(0))
+    sentences += [
+        f"'{word}' is in capital letters. Use ordinary capitals unless it is an acronym. {CHECK}" for word in shouted
+    ]
+    promoted: list[str] = []
+    for match in _PROMO.finditer(prose):
+        word = match.group(1).lower()
+        if word not in promoted:
+            promoted.append(word)
+    sentences += [f"'{word}' sounds like marketing. Say what the work does instead. {CHECK}" for word in promoted]
+    return sentences
+
+
+__all__ = ["spelling_advice", "tone_advice", "RULES", "Rule"]
