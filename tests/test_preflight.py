@@ -129,7 +129,11 @@ def test_the_command_line_refuses_to_write_when_the_check_fails_on_the_copy(site
     )
     notice = site_dir.parent / "notice.txt"
     notice.write_text("Talk on 5 November 2026 in Lab 3, Example City.", encoding="utf-8")
-    reply = '{"title": "Lab Talk", "kind": "talk", "date": "2026-11-05", "venue": "Lab 3, Example City"}'
+    reply = (
+        '{"title": "Lab Talk", "kind": "talk", "date": "2026-11-05", "venue": "Lab 3, Example City",'
+        ' "sources": {"date": "5 November 2026", "endDate": null, "venue": "Lab 3, Example City", "series": null},'
+        ' "date_phrase": null}'
+    )
     code = main(
         ["add-event", "--site", str(site_dir), "--from", str(notice), "--apply", "--yes"], client=FakeLLM(reply)
     )

@@ -161,14 +161,14 @@ def test_a_missing_photo_is_warned(site_dir):
 
 def test_a_photo_with_the_wrong_ending_is_warned(site_dir):
     person_with_photo(site_dir, "/people/pat-lee.gif")
-    (site_dir / "public/people").mkdir()
+    (site_dir / "public/people").mkdir(parents=True, exist_ok=True)
     (site_dir / "public/people/pat-lee.gif").write_bytes(b"GIF89a")
     site, repo = open_site(site_dir)
     assert any("must be a .jpg, .jpeg, .png or .webp file" in w for w in checks.file_warnings(site, repo))
 
 
 def test_a_photo_with_a_good_ending_is_not_warned(site_dir):
-    (site_dir / "public/people").mkdir()
+    (site_dir / "public/people").mkdir(parents=True, exist_ok=True)
     for name in ("a.jpg", "b.JPEG", "c.png", "d.webp"):
         (site_dir / "public/people" / name).write_bytes(b"x")
         person_with_photo(site_dir, f"/people/{name}")
