@@ -1,0 +1,8 @@
+New session for students:
+
+- Event: Hands-on Day, 3D Printing for Robot Parts
+- Date: 3 September 2026
+- Time: 10 am to 4 pm
+- Place: Makerspace, Example City
+- Who can come: all students of the department
+- Bring: your own design file, if you have one

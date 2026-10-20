@@ -1,0 +1,1 @@
+Reminder for next week: Dr. Leo Marsh will give a talk called "Tactile Sensing for Gentle Grasping" next Monday at 3 pm in Lab 3, Example City. He will explain how touch sensors in a gripper let a robot hold an egg or a coin with the same hand. All are welcome.

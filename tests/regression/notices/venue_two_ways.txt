@@ -1,0 +1,5 @@
+Talk: Learning to Walk in Simulation
+
+Dr. Tomas Webb will speak about training walking robots in simulation and moving the result to a real machine. The talk is on 20 August 2026.
+
+Venue: Lab 3, Example City. This is the same room that the campus map lists as Block B, Room 12. Please use the Lab 3 entrance on the ground floor.
