@@ -195,3 +195,110 @@ kind is lower-cased, as the record rules require.
 
 Why: the notice fill had no grounding notes in the app, although requirement U12 asks for them, and the notice's own
 numbers would otherwise have been flagged.
+
+## D25. Model output is capped, and the call limit is ten minutes
+
+Each model call asks for at most 1,200 output tokens (`max_output_tokens`), so a runaway reply cannot run for hours. The
+default call timeout is now 600 seconds. A run of `deepseek-r1:7b` took 436 seconds in the measurements, which the old
+300-second default would have cut off. The timeout applies to each read from the server, not to the whole call.
+
+Why: an unbounded reply is the main cause of a very slow call, and the old limit cut off a valid slow answer.
+
+## D26. Replies are asked for in the record's shape, with a fallback
+
+When the server accepts a JSON schema, the event record is requested in that shape, so keys, types and the kind choices are
+set when the reply is written. If the server answers HTTP 400 to the schema request, the same call is retried once in
+plain JSON mode. Other errors are not retried this way.
+
+Why: the harness already repaired many replies, but a schema removes the failure at its source. The fallback keeps older
+servers working.
+
+## D27. Model calls are logged by count and hash only
+
+Each model call appends one line to `calls.jsonl` in the site's `.site-agent` folder: the time, provider, model, seconds,
+output tokens, a hash of the prompt, and whether it succeeded. The text of the notice and of the reply is never written.
+
+Why: a log of calls helps tune the models, and a hash lets two prompt versions be told apart. Keeping the text out means the
+log can be shared without exposing the operator's notices. Reviewing this decision is open under REQUIREMENTS E49.
+
+## D28. A reply that breaks the record rules is sent back once
+
+If the model returns valid JSON that the event rules reject, the rule message is sent back in the same conversation, and the
+model may correct its own record once. The same happens when an update's merged record is invalid. A second failure is
+reported to the operator with the field named.
+
+Why: the model can usually fix a wrong date or kind when told what is wrong; a second retry seldom helps, and costs time.
+
+## D29. Dates and places must be quoted from the notice
+
+The model gives the exact words of the notice for the date, end date, venue and series. On the command line, a date that is
+not quoted from the notice blocks the write, and the operator is told to check the notice or edit the file by hand. A venue or
+series that is not quoted is a note to check. In the web form, the same checks appear as notes beside the filled-in fields,
+and the operator still decides. An end date always needs its own quote.
+
+Why: a wrong date is the costliest mistake a notice can cause, so it is refused rather than noted. A venue or series is easier
+to correct by hand, so it is only noted. The web form keeps the operator in charge of every field.
+
+## D30. A relative date is worked out in code
+
+When a notice says "next Monday" or "tomorrow", the model returns the phrase, and the code works out the calendar date from
+today's date. If the model also gave a date that differs, the code's date is used and a note says so. Supported phrases are
+today, tomorrow, "this" or bare weekdays, and "next" weekdays. Any other phrase is left to the operator.
+
+Why: calendar arithmetic is a known weakness of small models, and it is checkable in code.
+
+## D31. Duplicate people and DOIs block a save; duplicate event titles warn
+
+A new or edited person whose name matches another person (after accents, case, punctuation and "Last, First" order are
+ignored) is blocked. A publication with the same DOI as another is blocked. An event with the same title as another is a
+warning. Names that are not on the site get a hint with up to three close names.
+
+Why: a second copy of a person or a DOI breaks links and counts, so it is refused. Two events can share a title legitimately,
+so they are only flagged.
+
+## D32. Proposed limits are enforced, and can be changed in one place
+
+Years must be from 1950 to next year. Titles are at most 120 characters. The homepage shows four featured projects and six
+featured partners, so a warning appears when a fifth project or a seventh partner is marked featured. An opening whose deadline
+has passed gets a warning, unless it is marked closed. These numbers are named constants in `records.py` and
+`repository.py`, and are proposed until the CIR team confirms them (REQUIREMENTS U6, U9, U19, U22, U26).
+
+## D33. Claims in a draft are warnings, not blocks
+
+A draft sentence that shares no meaningful word with the operator's facts is shown in the draft panel as a sentence to check.
+It does not block a save and does not count as an unsupported number. The check is lexical, so it can miss a claim that reuses
+the facts' words, and it can flag a true sentence that uses new words. Open decision 6 in PLANNING.md records the choice.
+
+Why: a lexical check is cheap and explainable, but not reliable enough to block on.
+
+## D34. The site check runs on a copy before anything is written
+
+Before a change is written, the site is copied to a temporary folder, the change is applied to the copy, and the site's check
+command runs there. A failing check blocks the write on the web and on the command line. The copy links to the site's
+`node_modules` rather than copying it. If the link cannot be made (for example on Windows without the right permission), the
+write goes ahead and the check runs after it, as before, and the reason is shown.
+
+Why: a build break found after a write needs a second repair, while one found before a write costs nothing. The copy keeps the
+real site untouched.
+
+## D35. Dates, files and homepage lines are checked and reported, never changed
+
+The launch screen and the audit warn when an event has ended, when news says it is coming up but is dated more than 60 days
+ago, when a photo or PDF is missing or of the wrong type, when the social-sharing image is not 1200 by 630 pixels, and when a
+homepage or news line gives a different date from the event it names. The machine's local date is used until the CIR team
+answers the time-zone question (REQUIREMENTS Q11). Placeholder words in the site pages are warnings for the technical
+contact, not blockers.
+
+## D36. Search matches every word, in any order, and ignores accents
+
+A search matches when every word of the query is found in one of the entry's key fields, in any order, ignoring case and
+accents. Choice fields also match their labels.
+
+Why: an operator should not have to remember the exact order or accent of a name.
+
+## D37. The command-line restore follows the undo rules
+
+`site-agent restore` refuses a run that a later change has touched, exactly as the app does, and `--dry-run` shows what would
+change without changing anything.
+
+Why: the command line was able to overwrite later edits, which breaks the undo rules (D17).

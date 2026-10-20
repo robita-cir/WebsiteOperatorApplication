@@ -61,6 +61,8 @@ and a copy is kept, so **History** can restore it.
 - It will not save without an approver from the list, your name in Settings, and a tick on each warning.
 - It will not send your notices, drafts or the website to any server. The writing helper runs on this computer.
 - It will not publish. Deployment is for the technical contact.
+- It will not write a change that fails the site check when the check is run on a copy with that change applied. Nothing is
+  written in that case, and the Check screen shows why.
 
 ## Set up (for the technical contact)
 
@@ -79,8 +81,9 @@ Then, in the website folder, create `site-agent.toml` from [site-agent.example.t
 `check_command` to `npm run check` once `npm install` has been run in the website folder. Only the technical contact
 sets this value.
 
-Command-line tools for the technical contact: `site-agent scan`, `find`, `restore`, and the older `add-event` and
-`update-event` commands. The app and the command line share the same rules and the same history. An update whose model
+Command-line tools for the technical contact: `site-agent scan`, `find`, `audit`, `restore` (with `--dry-run` to see
+what would change first), and the older `add-event` and `update-event` commands. `audit` reads every content file, reports
+problems and old dates, and writes a report to the site's `.site-agent/audits` folder. It changes no content. The app and the command line share the same rules and the same history. An update whose model
 edits cannot all be placed safely is not written; the lines are listed so you can edit them by hand.
 
 ## Tests

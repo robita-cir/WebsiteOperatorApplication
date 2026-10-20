@@ -31,6 +31,14 @@ src/site_agent/
                      text the model was not shown is refused.
 ├── text_utils.py     Slugs, date spellings, line matching, excerpts for the model, grounding warnings.
 ├── factcheck.py      The fact check for written text (S14). Used when drafting and when saving.
+├── dates.py          Turns a relative date phrase ('next Monday') into a calendar date, in code.
+├── checks.py         Checks on dates (events that ended, news that says it is coming up), files and homepage lines.
+├── imagecheck.py     Reads PNG sizes and PDF headers, and file sizes, for the file checks.
+├── preflight.py      Runs the site check on a copy with the pending changes, before anything is written.
+├── audit.py          The audit report: every file checked, references, samples, placeholders and the checks above.
+├── calllog.py        Logs each model call to the site's state folder: counts and hashes, never the text.
+├── search.py         Matches every word of a search, in any order, ignoring case and accents.
+├── explain.py        Plain sentences for the usual failures of a site check. No model is used.
 ├── plan.py           A plan is a list of file changes plus notes. Renders diffs.
 ├── validate.py       Checks content against its collection's rules, before writing and on demand.
 ├── apply.py          Writes a plan, keeps backups and a run log, undoes a write that fails part way, restores a run,
@@ -110,6 +118,7 @@ Each rule has at least one test. If you change code near one of them, keep the t
 | S10 | Lines that show old details but do not name the event are never changed without the operator's opt-in. | `workflows.plan_update_event` | `test_by_default_lines_without_the_event_name_are_reported_not_guessed` |
 | S16 | A write that fails part way is undone before the error is shown. Every file is put back as it was, and no run log is written. | `apply.apply_plan`, `apply._put_back` | `test_a_write_that_fails_part_way_is_undone_and_leaves_no_run` |
 | S17 | An update is not written while one of its model edits cannot be placed, or changes text the model was not shown. The lines are listed for hand editing. | `workflows._ask_model_for_leftovers`, `cli._review_and_apply` | `test_an_update_with_a_model_edit_that_cannot_be_placed_writes_nothing`, `test_model_edit_that_cannot_be_placed_is_reported_not_applied` |
+| S18 | The site check runs on a copy with the pending changes before anything is written. A failing check blocks the write, on the web and on the command line. If a copy cannot be made, the write goes ahead and the check runs after it. | `preflight.run_preflight`, the approve route, `cli._review_and_apply` | `test_the_command_line_refuses_to_write_when_the_check_fails_on_the_copy`, `test_a_failing_check_on_the_copy_is_reported_and_the_real_site_is_unchanged` |
 
 ## Data the tool reads and writes
 

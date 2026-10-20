@@ -39,7 +39,7 @@ If your change depends on model behaviour, run the live test and record the resu
 
 ## Rules for changes
 
-- **Safety rules.** Each rule in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (S1 to S17) has a test. Keep the test
+- **Safety rules.** Each rule in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (S1 to S18) has a test. Keep the test
   passing. If a rule itself must change, write the new rule in [docs/DECISIONS.md](docs/DECISIONS.md) first.
 - **Operator messages.** Errors and notes are read by a non-technical operator. Write them in plain English, say what
   to do next, and name the file and the field.

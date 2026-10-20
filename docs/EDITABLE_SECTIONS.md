@@ -48,7 +48,7 @@
 | dept | text | no | Proposed limit 120 characters | Card and profile |
 | interests | list of text | no (empty) | Proposed: up to 10 items, 60 characters each | Shown as tags. Profile says "To be added." if empty (`people/[slug].astro` 79) |
 | homepage | web address | no | Schema accepts any valid web address. Docs say https | Profile link |
-| photo | file path | no | Path under `public/`, for example `/people/jane-doe.jpg`. Not checked for existence | If the file is missing, the card shows a broken picture, not initials |
+| photo | file path | no | Path under `public/`, for example `/people/jane-doe.jpg`. Checked on save, and by the launch and audit checks (exists, type) | If the file is missing, the card shows a broken picture, not initials |
 | order | whole number | no (default 100) | Lower numbers first within a group | Decides which four faculty appear on the homepage |
 | sample | yes or no | no (default no) | | Sample label on faculty cards and profiles only |
 | (body) | main text | no | Proposed: 80 to 250 words | Profile text. Empty shows "Biography to be added" (`people/[slug].astro` 103-104) |
@@ -272,7 +272,7 @@
 | kind | one choice | yes | report, brochure, policy, form, other | Shown as a label |
 | date | calendar date | no | | Shown as a long date |
 | description | text | yes | Proposed limit 300 characters | |
-| file | file path | no | Path such as `/documents/annual-report-2025.pdf`. Not checked for existence | Blank shows "File to be uploaded" (`documents.astro` 50). A wrong path gives a broken download link |
+| file | file path | no | Path such as `/documents/annual-report-2025.pdf`. Checked on save, and by the launch and audit checks (exists, PDF header) | Blank shows "File to be uploaded" (`documents.astro` 50). A wrong path gives a broken download link |
 | order | whole number | no (default 100) | | |
 | sample | yes or no | no | | |
 
@@ -541,11 +541,11 @@
 | Marker | Where | Count | Launch check today |
 |---|---|---|---|
 | `sample: true` | Areas 1, 3, 4, 5, 6, 7, 10, 11, 12 | 99 entries | **Blocker**: lists every file |
-| "[Sample]" in titles | 2 openings, 3 publications, 2 documents | 7 | Not checked |
+| "[Sample]" in titles | 2 openings, 3 publications, 2 documents | 7 | Checked on the launch screen (case-insensitive) |
 | "Placeholder" text in entries | 62 bios, 11 project bodies, 9 event bodies, 2 news bodies, 12 partner summaries, 4 funding summaries, 4 gallery descriptions, 4 facility summaries | 108 entries | **Not checked** |
 | "Partner N", "Funder N", "Country name", "Amount placeholder", "Facility type", "Venue name, City" | Partners, funding, facilities, events | Many | **Not checked** |
-| "Sample answer" | 4 FAQ answers on `/join/` | 4 | Not checked |
-| "Placeholder" in page files | About 50 lines (Area 14) | About 50 | **Not checked** |
+| "Sample answer" | 4 FAQ answers on `/join/` | 4 | Checked on the launch screen (case-insensitive) |
+| "Placeholder" in page files | About 50 lines (Area 14) | About 50 | Checked on the launch screen as a warning. Search-box `placeholder=` attributes are ignored |
 | "Institute name", "example.org", "+00-000-000-0000", "Building name, campus" | Site settings, `astro.config.mjs`, `og-default.png`, `support.astro` 14 | Several | Only the site URL (blocker) and the student club URL (warning) |
 | "centre@example.org" | Site settings, `people.astro` 140, `gallery.astro` 45 | 3 | Not checked |
 | Bracket fields | 3 legal pages | 9 | Warnings |
