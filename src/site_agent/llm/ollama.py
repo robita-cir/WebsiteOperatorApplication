@@ -2,11 +2,22 @@
 
 from __future__ import annotations
 
+from contextlib import closing
 from pathlib import Path
 from typing import Any
 
 from site_agent.config import LLMSettings
-from site_agent.llm.base import LLMError, Message, Reply, chat_logged, post_json
+from site_agent.llm.base import (
+    LLMError,
+    Message,
+    Reply,
+    as_token_count,
+    chat_logged,
+    parse_stream_json,
+    post_stream,
+    report_progress,
+    stream_error,
+)
 
 
 class OllamaClient:
@@ -30,7 +41,8 @@ class OllamaClient:
         payload: dict[str, Any] = {
             "model": s.model,
             "messages": [{"role": m.role, "content": m.content} for m in messages],
-            "stream": False,
+            # Streaming lets a cancel close the connection, so the server stops generating, and shows progress.
+            "stream": True,
             # num_predict caps the reply so a model that fails to stop cannot run until the timeout.
             "options": {"temperature": s.temperature, "num_ctx": s.context_tokens, "num_predict": s.max_output_tokens},
         }
@@ -38,16 +50,37 @@ class OllamaClient:
             payload["format"] = schema
         elif json_mode:
             payload["format"] = "json"
+        parts: list[str] = []
+        received = 0
+        tokens: int | None = None
+        finished = False
         try:
-            data = post_json(f"{s.base_url.rstrip('/')}/api/chat", payload, s.timeout_s)
+            # The reply is one JSON object per line; the last has done true and the output token count.
+            with closing(post_stream(f"{s.base_url.rstrip('/')}/api/chat", payload, s.timeout_s)) as lines:
+                for line in lines:
+                    if not line:
+                        continue
+                    data = parse_stream_json(line)
+                    if "error" in data:
+                        raise stream_error(data["error"])
+                    message = data.get("message")
+                    content = message.get("content") if isinstance(message, dict) else None
+                    if isinstance(content, str) and content:
+                        parts.append(content)
+                        received += len(content)
+                        report_progress(received)
+                    if data.get("done") is True:
+                        tokens = as_token_count(data.get("eval_count"))
+                        finished = True
+                        break
         except LLMError as exc:
             if exc.status == 404:
                 raise LLMError(
                     f"model '{s.model}' was not found. If it is not installed, run: ollama pull {s.model}"
                 ) from exc
             raise
-        content = data.get("message", {}).get("content")
-        if not isinstance(content, str):
+        if not finished:
+            raise LLMError("the model's reply stopped before it was complete.")
+        if not parts:
             raise LLMError("Ollama answered without any text.")
-        tokens = data.get("eval_count")
-        return content, tokens if isinstance(tokens, int) and not isinstance(tokens, bool) else None
+        return "".join(parts), tokens

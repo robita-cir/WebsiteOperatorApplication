@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import contextvars
+import http.client
 import json
 import time
 import urllib.error
 import urllib.request
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
@@ -26,6 +28,21 @@ class LLMError(Exception):
 class Message:
     role: str  # "system", "user" or "assistant"
     content: str
+
+
+# Set by the job runner, in the job's own thread, while a job's work runs. The clients read them when a call runs, so
+# the ChatClient signature stays the same and a call made outside a job (a command line run) checks nothing.
+# CANCELLED answers "should this call stop now?"; PROGRESS receives the number of characters received so far.
+CANCELLED: contextvars.ContextVar[Callable[[], bool] | None] = contextvars.ContextVar("llm_cancelled", default=None)
+PROGRESS: contextvars.ContextVar[Callable[[int], None] | None] = contextvars.ContextVar("llm_progress", default=None)
+
+CANCELLED_TEXT = "cancelled"
+
+
+def report_progress(characters: int) -> None:
+    callback = PROGRESS.get()
+    if callback is not None:
+        callback(characters)
 
 
 class ChatClient(Protocol):
@@ -92,12 +109,29 @@ def chat_logged(
     return text
 
 
-def post_json(url: str, payload: dict[str, Any], timeout_s: float) -> dict[str, Any]:
+def post_stream(url: str, payload: dict[str, Any], timeout_s: float) -> Iterator[str]:
+    """Posts the request and yields the reply one decoded line at a time, as the server sends it.
+
+    Between lines it asks the job's cancel check (if there is one) whether to stop; if so it closes the connection, so
+    the server stops generating, and raises LLMError("cancelled"). timeout_s limits the wait for each read, not the
+    whole reply, because a reply that keeps arriving is making progress.
+    """
+
+    def check_cancelled() -> None:
+        stop = CANCELLED.get()
+        if stop is not None and stop():
+            raise LLMError(CANCELLED_TEXT)
+
+    check_cancelled()
     body = json.dumps(payload).encode("utf-8")
     request = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"}, method="POST")
     try:
+        # Leaving the with block (a cancel, an error, or the reader dropping this generator) closes the connection.
         with urllib.request.urlopen(request, timeout=timeout_s) as response:
-            return json.loads(response.read().decode("utf-8"))
+            for raw in response:
+                check_cancelled()
+                yield raw.decode("utf-8", "replace").strip()
+            check_cancelled()
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", "replace")[:300]
         raise LLMError(f"the server answered HTTP {exc.code}: {detail}", status=exc.code) from exc
@@ -105,5 +139,25 @@ def post_json(url: str, payload: dict[str, Any], timeout_s: float) -> dict[str, 
         raise LLMError(f"could not reach the model server at {url} ({exc.reason}). Is it running?") from exc
     except TimeoutError as exc:
         raise LLMError(f"the model did not answer within {timeout_s:.0f} seconds. Try a smaller model.") from exc
+    except (http.client.HTTPException, OSError) as exc:  # the connection dropped part way through the reply
+        raise LLMError(f"the connection to the model server was lost before the reply was complete ({exc})") from exc
+
+
+def stream_error(detail: Any) -> LLMError:
+    """An error the server reported inside the stream, after it had already answered 200."""
+    message = detail.get("message") if isinstance(detail, dict) else detail
+    return LLMError(f"the model server reported an error: {str(message)[:300]}")
+
+
+def parse_stream_json(line: str) -> dict[str, Any]:
+    try:
+        data = json.loads(line)
     except json.JSONDecodeError as exc:
         raise LLMError(f"the server's reply was not JSON: {exc}") from exc
+    if not isinstance(data, dict):
+        raise LLMError("the server's reply was not in the expected form")
+    return data
+
+
+def as_token_count(value: Any) -> int | None:
+    return value if isinstance(value, int) and not isinstance(value, bool) else None

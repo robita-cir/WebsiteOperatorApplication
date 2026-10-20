@@ -21,6 +21,7 @@ from site_agent.config import LLMSettings
 from site_agent.errors import SiteAgentError
 from site_agent.factcheck import claim_sentences, unsupported_tokens
 from site_agent.llm import ChatClient, Message
+from site_agent.llm.base import CANCELLED, PROGRESS
 from site_agent.llm.parsing import strip_reasoning
 from site_agent.prompts import load_prompt
 from site_agent.records import Spec
@@ -120,7 +121,14 @@ class JobRunner:
         draft). `finish` runs only if the job was not cancelled, and it runs under the lock, so a cancel that returns
         guarantees nothing is saved afterwards."""
         job_id = uuid.uuid4().hex[:12]
-        job = {"state": "running", "result": None, "error": None, "cancelled": False, "started": time.time()}
+        job = {
+            "state": "running",
+            "result": None,
+            "error": None,
+            "cancelled": False,
+            "started": time.time(),
+            "characters": 0,
+        }
         with self._lock:
             self._jobs[job_id] = job
         if self._inline:
@@ -130,14 +138,22 @@ class JobRunner:
         return job_id
 
     def _run(self, job: dict[str, Any], work: Callable[[], Any], finish: Callable[[Any], Any] | None) -> None:
+        # The model clients read these two while `work` runs in this thread: the cancel check lets a cancel close the
+        # connection to the model, and the progress callback feeds the wait page. Reset after, because with
+        # inline=True this thread is the caller's.
+        cancel_token = CANCELLED.set(lambda: job["cancelled"])
+        progress_token = PROGRESS.set(lambda characters: job.update(characters=characters))
         try:
             result = work()
         except SiteAgentError as exc:
-            job.update(state="failed", error=str(exc))
+            self._fail(job, str(exc))
             return
         except Exception as exc:  # the operator sees a plain message; the detail goes in the error text
-            job.update(state="failed", error=f"Something went wrong: {exc}")
+            self._fail(job, f"Something went wrong: {exc}")
             return
+        finally:
+            CANCELLED.reset(cancel_token)
+            PROGRESS.reset(progress_token)
         with self._lock:
             if job["cancelled"]:
                 return
@@ -152,6 +168,10 @@ class JobRunner:
                 return
             job.update(state="done", result=result)
 
+    def _fail(self, job: dict[str, Any], message: str) -> None:
+        # A call stopped by a cancel ends in an error ("cancelled"); that is the operator's choice, not a failure.
+        job.update(state="cancelled" if job["cancelled"] else "failed", error=None if job["cancelled"] else message)
+
     def status(self, job_id: str) -> dict[str, Any] | None:
         with self._lock:
             job = self._jobs.get(job_id)
@@ -162,10 +182,12 @@ class JobRunner:
                 "result": job["result"],
                 "error": job["error"],
                 "seconds": int(time.time() - job["started"]),
+                "characters": job["characters"],
             }
 
     def cancel(self, job_id: str) -> None:
-        """Stops waiting for the answer. The model cannot be interrupted mid-answer, so its reply is thrown away."""
+        """Stops the job. A call to the model that is streaming closes its connection at the next chunk; whatever
+        the job produces after this is thrown away and never saved."""
         with self._lock:
             job = self._jobs.get(job_id)
             if job and job["state"] == "running":

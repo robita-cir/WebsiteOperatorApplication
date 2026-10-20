@@ -573,7 +573,15 @@ def create_app(site_root: Path, *, llm: ChatClient | None = None, inline_jobs: b
         if status is None:
             return _redirect(next_url, err="That work is no longer known. The app may have restarted. Start it again.")
         if status["state"] == "running":
-            return page(request, "wait.html", next=next_url, job_id=job_id, seconds=status["seconds"], title="Working")
+            return page(
+                request,
+                "wait.html",
+                next=next_url,
+                job_id=job_id,
+                seconds=status["seconds"],
+                characters=status["characters"],
+                title="Working",
+            )
         if status["state"] == "done":
             result = status["result"]
             if isinstance(result, str) and result and result.isalnum():

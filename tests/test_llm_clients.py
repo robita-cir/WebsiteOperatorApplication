@@ -5,6 +5,7 @@ import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
+from streamserver import as_stream
 
 from site_agent.config import LLMSettings
 from site_agent.llm import LLMError, Message, make_client
@@ -21,9 +22,13 @@ class _Server:
             def do_POST(self):  # noqa: N802 (http.server naming)
                 body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
                 received.append((self.path, body))
-                payload = json.dumps(canned).encode("utf-8")
+                # The clients ask for a stream, so a good reply is sent as one; an error is a plain JSON body.
+                if code == 200:
+                    payload, kind = as_stream(self.path, canned)
+                else:
+                    payload, kind = json.dumps(canned).encode("utf-8"), "application/json"
                 self.send_response(code)
-                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Type", kind)
                 self.send_header("Content-Length", str(len(payload)))
                 self.end_headers()
                 self.wfile.write(payload)
@@ -54,7 +59,7 @@ def test_ollama_sends_the_chat_request_and_reads_the_reply(messages):
         server.close()
     path, body = server.received[0]
     assert path == "/api/chat"
-    assert body["model"] == "m1" and body["stream"] is False and body["format"] == "json"
+    assert body["model"] == "m1" and body["stream"] is True and body["format"] == "json"
     assert body["options"]["temperature"] == 0.2
     assert body["messages"][1] == {"role": "user", "content": "hello"}
 
