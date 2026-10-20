@@ -24,6 +24,7 @@ from site_agent.appstate import AppState
 from site_agent.config import Settings, load_settings
 from site_agent.drafting import JobRunner, draft_section, extract_from_notice, model_status, notice_notes
 from site_agent.errors import SiteAgentError
+from site_agent.explain import explain_check
 from site_agent.factcheck import facts_text, token_in_facts
 from site_agent.history import list_runs, undo
 from site_agent.launch import launch_report, placeholder_hits, samples
@@ -31,6 +32,7 @@ from site_agent.llm import ChatClient, make_client
 from site_agent.plan import FileChange, Plan, fingerprint
 from site_agent.records import SPECS, Spec, coerce
 from site_agent.repository import Outcome, Repository
+from site_agent.search import matches, search_values
 from site_agent.site import Site
 
 HERE = Path(__file__).parent
@@ -293,6 +295,7 @@ def create_app(site_root: Path, *, llm: ChatClient | None = None, inline_jobs: b
             "output": result.output,
             "command": check_command,
             "time": dt.datetime.now().isoformat(timespec="minutes"),
+            "plain": [] if result.ok else explain_check(result.output),
         }
         state.save_check(saved)
         return saved
@@ -318,14 +321,21 @@ def create_app(site_root: Path, *, llm: ChatClient | None = None, inline_jobs: b
             title="Start",
         )
 
+    def _search_texts(spec: Spec, item: Any) -> list[str]:
+        # An entry that cannot be read is still found by its title, so it can be opened and fixed.
+        try:
+            return [item.title, *search_values(spec, repo.load(spec, item.id).values)]
+        except SiteAgentError:
+            return [item.title]
+
     @app.get("/c/{key}", response_class=HTMLResponse)
     def collection(request: Request, key: str) -> Response:
         spec = spec_or_404(key)
-        query = str(request.query_params.get("q", "")).strip().casefold()
+        query = str(request.query_params.get("q", "")).strip()
         only_samples = request.query_params.get("samples") == "1"
         items = repo.listing(spec)
         if query:
-            items = [item for item in items if query in item.title.casefold()]
+            items = [item for item in items if matches(query, _search_texts(spec, item))]
         if only_samples:
             items = [item for item in items if item.sample]
         return page(
@@ -552,11 +562,15 @@ def create_app(site_root: Path, *, llm: ChatClient | None = None, inline_jobs: b
 
     @app.get("/check", response_class=HTMLResponse)
     def check(request: Request) -> Response:
+        last = state.last_check()
+        if last and not last.get("ok") and "plain" not in last:
+            # A result saved before the plain sentences existed still gets them.
+            last = {**last, "plain": explain_check(str(last.get("output", "")))}
         return page(
             request,
             "check.html",
             current="check",
-            last=state.last_check(),
+            last=last,
             command=settings.site.check_command,
             title="Check the site",
         )
