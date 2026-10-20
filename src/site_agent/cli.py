@@ -91,7 +91,8 @@ def _review_and_apply(site: Site, settings: Settings, plan: Plan, args: argparse
 def cmd_scan(args: argparse.Namespace, client: ChatClient | None) -> int:
     settings, site = _settings_and_site(args)
     print(f"Site:  {site.root}")
-    print(f"Model: {settings.llm.model} via {settings.llm.provider} at {settings.llm.base_url}")
+    llm = settings.llm
+    print(f"Model: {llm.model} ({llm.model_reason}) via {llm.provider} at {llm.base_url}")
     collections = site.collections_present()
     if not collections:
         print(f"No collections found in {site.content_dir}/.")

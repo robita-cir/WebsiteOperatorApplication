@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from site_agent.errors import SiteAgentError
+from site_agent.hardware import choose_model, total_memory_gb
 
 CONFIG_FILE = "site-agent.toml"
 STATE_DIR = ".site-agent"  # backups and run logs, kept inside the site folder
@@ -21,11 +22,14 @@ DEFAULT_WRITABLE = ("src/content/**/*.md",)
 class LLMSettings:
     # "ollama" for a local Ollama server, or "openai" for any OpenAI-compatible server (llama.cpp, LM Studio, vLLM).
     provider: str = "ollama"
-    model: str = "qwen2.5:7b"
+    # "auto" picks the model from the computer's memory when settings are loaded (see hardware.py).
+    model: str = "auto"
     base_url: str = "http://localhost:11434"
     timeout_s: float = 300.0
     temperature: float = 0.1
     context_tokens: int = 8192  # Ollama only: the context window requested for each call
+    # Why this model was chosen. Filled in by load_settings and never read from the TOML file.
+    model_reason: str = ""
 
 
 @dataclass(frozen=True)
@@ -72,7 +76,14 @@ def load_settings(site_root: Path, *, model: str | None = None) -> Settings:
     site_values = _section(raw, "site", SiteSettings, exclude=("root",))
     if "writable" in site_values:
         site_values["writable"] = tuple(site_values["writable"])
-    llm = LLMSettings(**_section(raw, "llm", LLMSettings))
+    llm = LLMSettings(**_section(raw, "llm", LLMSettings, exclude=("model_reason",)))
     if model:
         llm = replace(llm, model=model)
+        reason = "set on the command line"
+    else:
+        reason = "set in site-agent.toml"
+    if llm.model == "auto":
+        chosen, reason = choose_model(total_memory_gb())
+        llm = replace(llm, model=chosen)
+    llm = replace(llm, model_reason=reason)
     return Settings(site=SiteSettings(root=root, **site_values), llm=llm)

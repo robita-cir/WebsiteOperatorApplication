@@ -4,8 +4,10 @@
 [llm]
 # "ollama" for a local Ollama server, or "openai" for llama.cpp's server, LM Studio and similar.
 provider = "ollama"
-# The model name as the server knows it. See docs/MODELS.md for a choice by RAM.
-model = "qwen2.5:7b"
+# "auto" picks a model that fits this computer's memory: qwen2.5:7b with 12 GB or more, llama3.2:3b with less.
+# To use a particular model, write its name as the server knows it, for example "qwen2.5:7b". A name written here
+# is always used as it is. See docs/MODELS.md for a choice by RAM.
+model = "auto"
 base_url = "http://localhost:11434"
 # Seconds to wait for one answer. Raise it on a slow computer.
 timeout_s = 300
