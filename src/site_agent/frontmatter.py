@@ -23,6 +23,19 @@ class Document:
     body: str
 
 
+def _line_ending(text: str) -> str:
+    """The ending a file uses. A file that uses Windows endings must get them back when it is written."""
+    return "\r\n" if "\r\n" in text else "\n"
+
+
+def _to_unix(text: str) -> str:
+    return text.replace("\r\n", "\n")
+
+
+def _in_ending(text: str, ending: str) -> str:
+    return text if ending == "\n" else text.replace("\n", ending)
+
+
 def _closing_fence(lines: list[str]) -> int:
     """Index of the second '---' line. Raises ValueError when the file has no frontmatter block."""
     if not lines or lines[0].strip() != FENCE:
@@ -34,7 +47,7 @@ def _closing_fence(lines: list[str]) -> int:
 
 
 def parse_document(text: str) -> Document:
-    lines = text.split("\n")
+    lines = _to_unix(text).split("\n")
     close = _closing_fence(lines)
     try:
         data = yaml.safe_load("\n".join(lines[1:close])) or {}
@@ -69,17 +82,18 @@ def render_document(data: Mapping[str, Any], body: str) -> str:
     lines += [f"{key}: {format_scalar(value)}" for key, value in data.items() if value is not None]
     lines.append(FENCE)
     text = "\n".join(lines) + "\n"
-    body = body.strip()
+    body = _to_unix(body).strip()
     return f"{text}\n{body}\n" if body else text
 
 
 def set_body(text: str, body: str) -> str:
     """Replaces the Markdown body and leaves the top block exactly as it was. An unchanged body gives the same text."""
-    lines = text.split("\n")
+    ending = _line_ending(text)
+    lines = _to_unix(text).split("\n")
     close = _closing_fence(lines)
     head = "\n".join(lines[: close + 1])
-    body = body.strip()
-    return f"{head}\n\n{body}\n" if body else f"{head}\n"
+    body = _to_unix(body).strip()  # a browser sends Windows endings in a text box, whatever the file uses
+    return _in_ending(f"{head}\n\n{body}\n" if body else f"{head}\n", ending)
 
 
 def set_frontmatter_values(text: str, changes: Mapping[str, Any]) -> str:
@@ -87,7 +101,8 @@ def set_frontmatter_values(text: str, changes: Mapping[str, Any]) -> str:
 
     A value of None removes the key. A key that is not there yet is added at the end of the block.
     """
-    lines = text.split("\n")
+    ending = _line_ending(text)
+    lines = _to_unix(text).split("\n")
     close = _closing_fence(lines)
     head, block, tail = lines[:1], lines[1:close], lines[close:]
     for key, value in changes.items():
@@ -101,4 +116,4 @@ def set_frontmatter_values(text: str, changes: Mapping[str, Any]) -> str:
         while end < len(block) and block[end][:1] in (" ", "\t"):  # continuation lines of a multi-line value
             end += 1
         block[index:end] = replacement
-    return "\n".join(head + block + tail)
+    return _in_ending("\n".join(head + block + tail), ending)

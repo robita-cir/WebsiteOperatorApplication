@@ -48,7 +48,10 @@ class Site:
         return self.resolve(rel_path).is_file()
 
     def read(self, rel_path: str) -> str:
-        return self.resolve(rel_path).read_text(encoding="utf-8-sig")
+        """The text as it is on disk. Line endings are kept (newline=""), so a change can be written back in the
+        file's own style and the comparison in apply_plan matches the file byte for byte."""
+        with self.resolve(rel_path).open(encoding="utf-8-sig", newline="") as handle:
+            return handle.read()
 
     def is_writable(self, rel_path: str) -> bool:
         if any(part in IGNORED_DIRS for part in PurePosixPath(rel_path).parts):
@@ -69,7 +72,8 @@ class Site:
         """Writes without the allow-list check. Used only when restoring a backup."""
         path = self.resolve(rel_path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text, encoding="utf-8", newline="\n")
+        with path.open("w", encoding="utf-8", newline="") as handle:  # no conversion: the text keeps its own endings
+            handle.write(text)
 
     def collections_present(self) -> list[str]:
         if not self.settings.content_path.is_dir():
