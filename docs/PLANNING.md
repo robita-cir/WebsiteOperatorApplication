@@ -32,10 +32,12 @@ Decisions from the CIR team so far:
 | Drafting from facts, fact check, notice to form | Built. Tested with a scripted model only | `drafting.py`, `tests/test_web.py` |
 | Command-line tool (`site-agent`) | Built, events only in the command line | `tests/test_cli.py` |
 | Writing helper against a real model | Measured for events before the app existed. Drafting in the app is not yet measured | [MODELS.md](MODELS.md) |
-| Native Windows, WSL2 bundle | Not tested | section 6 |
+| Native Windows, WSL2 bundle | Not tested on native Windows or on the operator's machine. On the developer's WSL2 machine, an end-to-end run passed on 20 October 2026 | [TEMPLATE_CONTRACT.md](TEMPLATE_CONTRACT.md), "Run against the template copy" |
+| Launch readiness | Built to the template's rules, blockers and warnings. Matches the template's own check on the template copy | `launch.py`, `tests/test_launch.py` |
 | Template changes P1 to P19 | Proposed. None made | [REQUIREMENTS.md](REQUIREMENTS.md) section (e) |
 
-Test suite: 113 pass; one live model test is skipped unless `SITE_AGENT_LIVE=1`. `ruff check src tests` is clean.
+Test suite: 125 pass; one live model test is skipped unless `SITE_AGENT_LIVE=1`. `ruff check src tests` is clean. The test
+client is `httpx2`, which Starlette recommends in place of `httpx`.
 
 What was checked against the real template (a copy, never the template itself):
 
@@ -73,7 +75,7 @@ Each milestone has an exit condition. Do not start one until the one before is a
 | M0 | Base repository, tests, documents | Passing | Developer | Done |
 | M1 | CIR team answers the open questions in REQUIREMENTS.md section (h) | Answers recorded there, with date and name | CIR team | Open |
 | M2 | Template fixes P1 to P3, P5, P8, P9, P12, P13 | The launch check reports every placeholder; missing photos and PDFs fail the build; the series list is no longer literal | Template maintainer, with the CIR team | Open |
-| M3 | Native Windows and WSL2 test on the operator's machine: the app starts, a change is written, the site check runs, undo works | The test passes on both, recorded here | Developer and operator | Open |
+| M3 | Native Windows and WSL2 test on the operator's machine: the app starts, a change is written, the site check runs, undo works | The test passes on both, recorded here | Developer and operator | Partly. The WSL2 run on the developer's machine passed on 20 October 2026. Open: the operator's machine and native Windows |
 | M4 | Service layer and content rules | Done. The rules are tested without a model or a network | Developer | Done |
 | M5 | Operator app (first build) | Done. Every collection, approval, undo, check, launch, history. Operator usability test not yet run | Developer | Built; test pending |
 | M6 | Usability test with one real operator, timed, on the lab's machine | An operator completes one add and one edit in under 10 minutes without help; findings recorded | Developer and operator | Open |

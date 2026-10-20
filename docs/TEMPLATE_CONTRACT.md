@@ -88,3 +88,18 @@ On a copy of commit 23f4878b, with nothing built or installed:
 - Partners and funded programmes have no sample flag in the template, so their placeholder words are listed as warnings.
 - Launch readiness also reports the placeholder values in the site settings file, and the three legal pages still marked
   "Draft for review".
+
+## Run against the template copy (20 October 2026)
+
+On a copy of commit 23f4878b, installed with `npm ci` under Node 22.23.3 (the template needs 22.12 or newer), on the
+developer's WSL2 machine:
+
+- `npm run check` passes. The build makes 113 pages and the HTML check reports no errors.
+- `npm run check:launch` exits 1 with 105 blocker lines: 99 sample entries, `src/pages/styleguide.astro`, the three legal
+  pages marked "Draft for review", and `site.url`. The app's launch report had no check for the styleguide page, the
+  social-sharing image, the bracketed placeholders in the legal pages, the club link, the search index or the portraits.
+  These now follow the template's rules, so the app and the template agree on what blocks a launch.
+- An end-to-end run through the app, on a copy of that site with `check_command = "npm run check"`: the app started on
+  localhost, a person was added, previewed and approved, the template's check ran through the app and passed, the file
+  was written, and undo removed it again. This was on the developer's WSL2 machine. The operator's own machine and
+  native Windows are not tested yet (PLANNING.md, milestone M3).

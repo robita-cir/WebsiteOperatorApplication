@@ -44,14 +44,21 @@ stated.
 |---|---|---|---|
 | `qwen2.5:7b` | Event from a notice (`tests/test_live.py`) | Title, date, venue and summary correct. Kind `programme` chosen for an open day (a judgement). The body added one sentence the notice did not state | about 15 s |
 | `llama3.2:3b` | Same notice | Title, date, venue and summary correct. Kind the same. Body left empty | about 13 s |
+| `qwen2.5:7b` (re-run, 20 October 2026) | Same notice, `tests/test_live.py` | Title, kind, date and venue correct | 27 s |
+| `qwen3:8b` | Same notice | Date, venue and kind correct. The title came out in lower case ("annual open day") and the test passed anyway | 251 s |
+| `deepseek-r1:7b` | Same notice | Title, kind, date and venue correct | 436 s |
 | `qwen2.5:7b` | Update an event on the CIR template clone (dry run) | Four fields changed correctly from one instruction | about 4 s |
 | `qwen2.5:7b` and `llama3.2:3b` | Update an event on the example site: the event file and the homepage line that names it | Both produced the same correct change, without the model editing the homepage line | not timed |
 | `qwen2.5:7b` | Model-assisted edit (`--assisted`) on lines that did not name the event | **Unsafe.** Changed "Proposal deadline: 10 March 2026" when asked about a "Save the date" line. The rule added afterwards: unrelated lines are never changed without the operator's opt-in, and the tool lists them | not timed |
 
 What these results mean:
 
-- Extraction of structured fields from a short notice works on both models tested. Two runs per model is not enough
-  to rank them. The evaluation set in PLANNING.md (M6) is the next step.
+- Extraction of structured fields from a short notice works on the three models tested for it (`qwen2.5:7b`,
+  `qwen3:8b`, `deepseek-r1:7b`), and on `llama3.2:3b`. Each time is one run, and includes loading the model where it was
+  not already in memory. `qwen2.5:7b` was the fastest: about nine times faster than `qwen3:8b` and sixteen times faster
+  than `deepseek-r1:7b`. Those two reasoning models are slow on a 16 GB machine for little gain here, and `qwen3:8b`
+  lower-cased a title. Two runs per model is not enough to rank them. The evaluation set in PLANNING.md (M6) is the next
+  step.
 - Changing text in a file by asking the model is not reliable enough to run without a person checking every line. That
   is why the tool replaces known values itself and only asks the model about lines it cannot place.
 - The model is never asked to write YAML. The tool writes it from the validated record.
@@ -61,7 +68,7 @@ What these results mean:
 - Drafting in the app (the biography, summary and description drafts, and the fact check on real facts). The app's
   tests use a scripted model. Measure it before choosing a default for the app.
 
-- Reasoning models (`qwen3:8b`, `deepseek-r1:7b`).
+- Reasoning models (`qwen3:8b`, `deepseek-r1:7b`) for drafting and for more than one notice. Extraction was tried once.
 - Any model on native Windows.
 - Long notices (more than about 500 words) and notices in a language other than English.
 - The model-assisted edit on `llama3.2:3b`.
