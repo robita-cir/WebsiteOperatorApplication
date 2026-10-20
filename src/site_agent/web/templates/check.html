@@ -10,7 +10,15 @@
   {% else %}
     <div class="banner b-error" role="alert"><p><strong>The check did not pass.</strong> Last run {{ last.time }}. Fix the problem below, then check again.</p></div>
   {% endif %}
-  <details>
+  {% if not last.ok and last.plain %}
+  <div class="panel">
+    <div class="panel-head"><h2>What went wrong</h2></div>
+    <div class="panel-body">
+      {% for sentence in last.plain %}<p>{{ sentence }}</p>{% endfor %}
+    </div>
+  </div>
+  {% endif %}
+  <details {% if not last.ok %}open{% endif %}>
     <summary>Technical details</summary>
     <pre class="output">{{ last.output }}</pre>
   </details>
