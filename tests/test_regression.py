@@ -200,11 +200,31 @@ def scripted_reply(case: Case, **overrides: Any) -> str:
     if case.must_be_rejected:
         record.update(title="Planning Paths for Drone Swarms", kind="talk", date=None)
     record.update(overrides, summary=None, body="")
+    # The model is asked for the words it used for the date and venue, and for a relative date phrase.
+    record["sources"] = {
+        "date": case.expected.get("dateQuote"),
+        "endDate": None,
+        "venue": case.expected.get("venueQuote"),
+        "series": None,
+    }
+    record["date_phrase"] = case.expected.get("dateQuote") if case.expected.get("dateQuote") == "next Monday" else None
     return json.dumps(record)
 
 
-def fake_for(cases: list[Case], overrides: Callable[[Case], dict[str, Any]] = lambda case: {}) -> FakeLLM:
-    return FakeLLM(*(scripted_reply(case, **overrides(case)) for case in cases))
+def fake_for(
+    cases: list[Case],
+    overrides: Callable[[Case], dict[str, Any]] = lambda case: {},
+    repeat: tuple[str, ...] = (),
+) -> FakeLLM:
+    replies: list[str] = []
+    for case in cases:
+        reply = scripted_reply(case, **overrides(case))
+        replies.append(reply)
+        # A refused record makes the harness ask the model once more. The scripted model repeats its answer, as a
+        # real one would, so the next case still gets its own reply.
+        if not json.loads(reply).get("date") or case.name in repeat:
+            replies.append(reply)
+    return FakeLLM(*replies)
 
 
 def test_there_are_eight_cases_and_each_notice_has_an_expected_file():
@@ -261,7 +281,9 @@ def test_a_wrong_date_is_reported_as_wrong_and_other_fields_still_count():
 
 def test_a_case_that_raises_counts_every_field_wrong_and_is_listed_as_an_error():
     cases = load_cases()
-    result = run_regression(fake_for(cases, lambda c: {"kind": "party"} if c.name == "list_layout" else {}), "x")
+    result = run_regression(
+        fake_for(cases, lambda c: {"kind": "party"} if c.name == "list_layout" else {}, repeat=("list_layout",)), "x"
+    )
     bad = next(c for c in result.cases if c.name == "list_layout")
     assert bad.raised and len(bad.wrong) == 6
     assert result.errors == 1

@@ -22,7 +22,7 @@ from site_agent.errors import SiteAgentError
 from site_agent.factcheck import claim_sentences, unsupported_tokens
 from site_agent.llm import ChatClient, Message
 from site_agent.llm.base import CANCELLED, PROGRESS
-from site_agent.llm.parsing import strip_reasoning
+from site_agent.llm.parsing import extract_json_object, strip_reasoning
 from site_agent.prompts import load_prompt
 from site_agent.records import Spec
 from site_agent.text_utils import ungrounded_fields
@@ -79,6 +79,51 @@ def extract_notice(llm: ChatClient, notice: str, today: str | dt.date) -> Notice
         fields["kind"] = fields["kind"].strip().lower()
     notes = [*reading.blockers, *reading.notes, *notice_notes(fields, notice)]
     return NoticeResult(fields, notes)
+
+
+def _clean_reply(reply: str) -> str:
+    text = strip_reasoning(reply).strip().strip('"').strip()
+    if text.startswith("```"):
+        text = text.strip("`").strip()
+    return text
+
+
+def rephrase_draft(llm: ChatClient, spec: Spec, section: str, text: str, facts: str) -> dict[str, Any]:
+    """Asks for the same text again with every sentence the facts do not support removed or reworded.
+
+    The reply is checked here, not trusted: the returned "unsupported" lists what the facts still do not give, so a
+    rewrite that keeps an invented number is shown to the operator as such. Returns {"text", "unsupported"}.
+    """
+    if not facts.strip():
+        raise SiteAgentError("Write at least one fact first. The model can only use what you give it.")
+    if not text.strip():
+        raise SiteAgentError("There is no text to rewrite yet.")
+    system = load_prompt("rephrase_draft", singular=spec.singular, section=section)
+    reply = llm.chat([Message("system", system), Message("user", f"Facts:\n{facts}\n\nText to fix:\n{text}")])
+    new_text = _clean_reply(reply)
+    if not new_text:
+        raise SiteAgentError("The model returned an empty text. Try again, or edit the text yourself.")
+    return {"text": new_text, "unsupported": unsupported_tokens(new_text, facts)}
+
+
+def suggest_choice(llm: ChatClient, spec: Spec, field_name: str, title: str, summary: str, facts: str) -> str | None:
+    """Asks which of a choice field's options fits. Returns the stored value, or None when the answer is not one of
+    the listed options. The operator accepts or changes it; nothing is saved here."""
+    field = spec.field(field_name)
+    options = "\n".join(f"- {stored} ({label})" for stored, label in field.choices)
+    system = load_prompt("suggest_choice", label=field.label, singular=spec.singular, options=options)
+    given = [f"Title: {title.strip()}"] if title.strip() else []
+    if summary.strip():
+        given.append(f"Summary: {summary.strip()}")
+    if facts.strip():
+        given.append(f"Facts:\n{facts.strip()}")
+    reply = llm.chat([Message("system", system), Message("user", "\n".join(given))], json_mode=True)
+    try:
+        chosen = extract_json_object(reply).get("value")
+    except ValueError:
+        return None
+    # Only the stored value counts: a label, a different case or an invented option is refused.
+    return chosen if isinstance(chosen, str) and chosen in {stored for stored, _ in field.choices} else None
 
 
 def extract_from_notice(llm: ChatClient, notice: str, today: str) -> dict[str, Any]:

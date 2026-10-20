@@ -12,6 +12,9 @@
         <option value="">Choose one</option>
         {% for stored, label in f.choices %}<option value="{{ stored }}" {% if state.get(f.name) == stored %}selected{% endif %}>{{ label }}</option>{% endfor %}
       </select>
+      {% if not state.get(f.name) %}
+        <button class="btn-link" type="submit" name="action" value="suggest:{{ f.name }}">Suggest</button>
+      {% endif %}
     {% elif f.kind in ('list', 'person_list') %}
       <textarea id="f-{{ f.name }}" name="{{ f.name }}" rows="4"{{ described|safe }}>{{ state.get(f.name, '') }}</textarea>
     {% elif f.kind == 'long' %}
@@ -48,6 +51,8 @@
 <form method="post" action="{{ '/c/' ~ spec.key ~ '/' ~ record_id if record_id else '/c/' ~ spec.key ~ '/new' }}" id="record-form" novalidate>
   <input type="hidden" name="csrf" value="{{ csrf }}">
   {% if draft %}<input type="hidden" name="draft_id" value="{{ draft.id }}">{% endif %}
+  {# Pressing Enter in a text box uses the first button, so it must be the harmless one: Preview saves nothing. #}
+  <button type="submit" name="action" value="preview" tabindex="-1" aria-hidden="true" style="position:absolute;left:-9999px">Preview changes</button>
 
   {% for f in spec.fields %}
     {% if f.name != 'sample' or record_id %}{{ render_field(f, state, errors) }}{% endif %}
@@ -124,17 +129,31 @@
         {% for note in draft.notes or [] %}
           <div class="banner b-warn"><div><p>{{ note }}</p></div></div>
         {% endfor %}
+      {% elif draft.kind == 'suggestion' %}
+        {% for f in spec.fields if f.name == draft.field %}
+          {% if draft.value %}
+            <p>The helper suggests "{{ f.choices|selectattr(0, 'equalto', draft.value)|map(attribute=1)|first }}" for {{ f.label|lower }}. It is selected in the form. Keep it or choose another, then preview.</p>
+          {% else %}
+            <div class="banner b-warn"><div><p>{{ draft.message }}</p></div></div>
+          {% endif %}
+        {% endfor %}
       {% else %}
         <p>Draft ready for {{ draft.section|replace('body', 'the text')|replace('summary', 'the summary') }}. Read it, edit it in the form, then preview.</p>
       {% endif %}
-      {% for token in draft_pending %}
-        <div class="banner b-error"><div><p><strong>Not in your facts:</strong> "{{ token }}". Remove it from the text, or add it to the facts.</p></div></div>
-      {% endfor %}
-      {% for claim in draft_claims %}
-        <div class="banner b-warn"><div><p>Check this sentence against your facts: {{ claim }}</p></div></div>
-      {% endfor %}
-      {% if not draft_pending and draft.unsupported %}
-        <p class="note">The facts now cover everything the draft mentions.</p>
+      {% if draft.kind != 'suggestion' %}
+        {% for token in draft_pending %}
+          <div class="banner b-error"><div><p><strong>Not in your facts:</strong> "{{ token }}". Remove it from the text, or add it to the facts.</p></div></div>
+        {% endfor %}
+        {% for claim in draft_claims %}
+          <div class="banner b-warn"><div><p>Check this sentence against your facts: {{ claim }}</p></div></div>
+        {% endfor %}
+        {% if draft_pending and draft.kind == 'section' %}
+          <div class="btns"><button class="btn" type="submit" form="record-form" name="action" value="rephrase:{{ draft.section }}">Rewrite with only your facts</button></div>
+          <p class="note">The helper rewrites the text now in the form and leaves out what your facts do not give. You still read the new text before you preview.</p>
+        {% endif %}
+        {% if not draft_pending and draft.unsupported %}
+          <p class="note">The facts now cover everything the draft mentions.</p>
+        {% endif %}
       {% endif %}
     </div>
   </div>
