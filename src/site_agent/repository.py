@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import datetime as dt
 import difflib
+import re
 from dataclasses import dataclass, field
 from pathlib import PurePosixPath
 from typing import Any
@@ -33,9 +34,15 @@ from site_agent.records import (
     validate_values,
 )
 from site_agent.site import Site
-from site_agent.style import spelling_advice
+from site_agent.style import spelling_advice, tone_advice
 
 # Which field of one collection names an entry in another. A change to the named entry is reported with its dependants.
+MIXED_ENDINGS = (
+    "This file mixes Windows and Unix line endings, so a change cannot be made safely. "
+    "Fix the file's line endings by hand, then try again."
+)
+_BARE_LF = re.compile(r"(?<!\r)\n")
+
 DEPENDENCIES = (
     ("projects", "students", "people", "name"),
     ("funding", "partner", "partners", "name"),
@@ -268,6 +275,9 @@ class Repository:
     ) -> Outcome:
         ref_blockers, ref_warnings = self.references(spec, values)
         outcome.blockers += extra_blockers + ref_blockers
+        if before is not None and _mixes_line_endings(before):
+            # Which style to write back is a guess for such a file, so nothing is written until a person fixes it.
+            outcome.blockers.append(MIXED_ENDINGS)
         outcome.warnings += ref_warnings
         outcome.values, outcome.body = values, body
         if not outcome.ok:
@@ -280,7 +290,7 @@ class Repository:
         if new_text == before:
             outcome.warnings.append("Nothing has changed, so there is nothing to save.")
             return outcome
-        outcome.warnings += self._spelling_warnings(spec, old_values, values, _body_of(before), body)
+        outcome.warnings += self._text_warnings(spec, old_values, values, _body_of(before), body)
         outcome.changes = plain_changes(spec, old_values, values, _body_of(before), body)
         title = str(values.get(spec.title_field) or "")
         summary = f"{'Add' if before is None else 'Update'} {spec.singular} '{title}' ({rel})"
@@ -288,11 +298,11 @@ class Repository:
         return outcome
 
     @staticmethod
-    def _spelling_warnings(
+    def _text_warnings(
         spec: Spec, old_values: dict[str, Any] | None, values: dict[str, Any], old_body: str, body: str
     ) -> list[str]:
-        """Spelling advice for the long texts and the body that are new or changed. Text the operator did not touch is
-        left alone, so an unrelated edit does not bring up old spellings."""
+        """Spelling and tone advice for the long texts and the body that are new or changed. Text the operator did not
+        touch is left alone, so an unrelated edit does not bring up old spellings."""
         texts = [
             str(values[f.name])
             for f in spec.fields
@@ -300,7 +310,8 @@ class Repository:
         ]
         if spec.body_label and body and body.replace("\r\n", "\n") != old_body:
             texts.append(body)
-        return spelling_advice("\n\n".join(texts))
+        joined = "\n\n".join(texts)
+        return spelling_advice(joined) + tone_advice(joined)
 
     def create(self, spec: Spec, raw: dict[str, Any], facts: str = "") -> Outcome:
         outcome = Outcome()
@@ -375,6 +386,11 @@ class Repository:
         if not names:
             return []
         return [f"Renaming this person breaks the student list of: {', '.join(names)}. Update those projects too."]
+
+
+def _mixes_line_endings(text: str) -> bool:
+    """True when the text has both Windows (CRLF) and bare Unix (LF) line endings."""
+    return "\r\n" in text and _BARE_LF.search(text) is not None
 
 
 def _body_of(text: str | None) -> str:
