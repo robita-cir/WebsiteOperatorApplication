@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import datetime as dt
 import re
+import unicodedata
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlparse
@@ -26,6 +27,12 @@ AREAS = {
 _EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _DOI = re.compile(r"^10\.\d{4,9}/\S+$")
 _DOI_PREFIX = re.compile(r"^(https?://)?(dx\.)?doi\.org/", re.IGNORECASE)
+
+# Proposed limits from the requirements (docs/REQUIREMENTS.md U6, U9, U26, E14, E46), not enforced by the template.
+TITLE_MAX_CHARS = 120
+YEAR_MIN = 1950  # the latest allowed year is next year, so a paper in press can be listed
+FEATURED_PROJECT_LIMIT = 4  # the homepage shows this many featured projects and hides the rest
+FEATURED_PARTNER_LIMIT = 6
 
 
 @dataclass(frozen=True)
@@ -477,9 +484,37 @@ def _coerce_one(f: Field, value: Any) -> Any:
     raise ValueError(f"unknown field kind {f.kind}")
 
 
-def validate_values(spec: Spec, values: dict[str, Any], body: str = "") -> dict[str, str]:
+def normalise_name(name: str) -> str:
+    """A name in the form used to compare names: "Doe, Jane" and "jane  DOE" both become "jane doe"."""
+    text = str(name).strip()
+    if "," in text:
+        last, _, first = text.partition(",")
+        text = f"{first} {last}"
+    text = unicodedata.normalize("NFKD", text.casefold())
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    text = "".join(ch for ch in text if ch.isalnum() or ch.isspace())
+    return " ".join(text.split())
+
+
+def normalise_doi(doi: str) -> str:
+    """A DOI without its web prefix and in lower case, since DOIs are not case sensitive."""
+    text = str(doi).strip()
+    text = _DOI_PREFIX.sub("", text)
+    if text.lower().startswith("doi:"):
+        text = text[4:]
+    return text.strip().lower()
+
+
+def validate_values(spec: Spec, values: dict[str, Any], body: str = "", today: dt.date | None = None) -> dict[str, str]:
     """Rules that span fields, and checks that can be made without other files."""
     errors: dict[str, str] = {}
+    latest_year = (today or dt.date.today()).year + 1
+    for f in spec.fields:
+        value = values.get(f.name)
+        if f.kind == "int" and f.name == "year" and isinstance(value, int) and not YEAR_MIN <= value <= latest_year:
+            errors[f.name] = f"Year must be between {YEAR_MIN} and {latest_year}."
+        if f.name == "title" and isinstance(value, str) and len(value) > TITLE_MAX_CHARS:
+            errors[f.name] = f"Title is too long ({len(value)} characters). Keep it to {TITLE_MAX_CHARS} characters."
     if spec.key == "events" and values.get("endDate") and values.get("date"):
         if values["endDate"] < values["date"]:
             errors["endDate"] = "The last day cannot be before the first day."
