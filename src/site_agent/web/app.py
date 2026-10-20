@@ -22,7 +22,15 @@ from fastapi.templating import Jinja2Templates
 from site_agent.apply import apply_plan, run_check
 from site_agent.appstate import AppState
 from site_agent.config import Settings, load_settings
-from site_agent.drafting import JobRunner, draft_section, extract_from_notice, model_status, notice_notes
+from site_agent.drafting import (
+    JobRunner,
+    draft_section,
+    extract_from_notice,
+    model_status,
+    notice_notes,
+    rephrase_draft,
+    suggest_choice,
+)
 from site_agent.errors import SiteAgentError
 from site_agent.factcheck import facts_text, token_in_facts
 from site_agent.history import list_runs, undo
@@ -44,6 +52,7 @@ NAV_GROUPS = (
     ("Documents and gallery", ("documents", "gallery")),
 )
 DRAFT_LENGTH_KEYS = ("body", "summary", "description")
+NO_SUGGESTION = "The helper could not pick one of the listed options. Choose one yourself."
 
 
 def _safe_next(value: str | None) -> str:
@@ -184,9 +193,16 @@ def create_app(site_root: Path, *, llm: ChatClient | None = None, inline_jobs: b
         draft = state.load_draft(draft_id) if draft_id else None
         if draft and draft.get("collection") != spec.key:
             draft = None
+        if draft and draft.get("kind") == "suggestion":
+            if raw.get(str(draft.get("field"))) != (draft.get("value") or ""):
+                draft = None  # the operator changed the field, so the suggestion no longer applies
 
         if action.startswith("draft:"):
             return start_section_draft(request, spec, action.split(":", 1)[1], raw, record_id)
+        if action.startswith("rephrase:"):
+            return start_rephrase(spec, action.split(":", 1)[1], raw, record_id)
+        if action.startswith("suggest:"):
+            return start_suggestion(spec, action.split(":", 1)[1], raw, record_id)
         if action == "notice":
             return start_notice_draft(request, spec, str(form.get("notice", "")), record_id)
 
@@ -250,11 +266,86 @@ def create_app(site_root: Path, *, llm: ChatClient | None = None, inline_jobs: b
                     "section": section,
                     "text": result["text"],
                     "unsupported": result["unsupported"],
+                    "facts": str(raw.get("facts", "")),  # so the form still has them for a rewrite
                 }
             )
 
         job = jobs.start(work, finish)
         return _redirect(f"/jobs/{job}?{urlencode({'next': _back_url(spec, record_id)})}")
+
+    def start_rephrase(spec: Spec, section: str, raw: dict[str, Any], record_id: str | None) -> Response:
+        """Rewrites the text now in the form using only the facts. The result is a new draft; nothing is saved."""
+        if section == "body" and spec.body_label:
+            label = spec.body_label
+        else:
+            try:
+                field = spec.field(section)
+            except KeyError as exc:
+                raise HTTPException(status_code=404, detail="No such section.") from exc
+            if field.kind != "long":
+                raise HTTPException(status_code=400, detail="That section cannot be rewritten.")
+            label = field.label
+        text = str(raw.get("body" if section == "body" else section, ""))
+        if not text.strip():
+            return _redirect(_back_url(spec, record_id), err="There is no text to rewrite yet.")
+        facts = facts_text(spec, coerce(spec, raw)[0], str(raw.get("facts", "")))
+        llm = get_llm()
+
+        def work() -> dict[str, Any]:
+            return rephrase_draft(llm, spec, label, text, facts)
+
+        def finish(result: dict[str, Any]) -> str:
+            return state.save_draft(
+                {
+                    "kind": "section",
+                    "collection": spec.key,
+                    "record_id": record_id,
+                    "section": section,
+                    "text": result["text"],
+                    "unsupported": result["unsupported"],
+                    "raw": raw,  # the form as the operator left it, so nothing else on it changes
+                }
+            )
+
+        job = jobs.start(work, finish)
+        return _redirect(f"/jobs/{job}?{urlencode({'next': _back_url(spec, record_id)})}")
+
+    def start_suggestion(spec: Spec, field_name: str, raw: dict[str, Any], record_id: str | None) -> Response:
+        """Asks the helper to pick one option for an empty choice field. The pick is shown, never saved."""
+        try:
+            field = spec.field(field_name)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="No such field.") from exc
+        if field.kind != "choice":
+            raise HTTPException(status_code=400, detail="The helper only suggests for lists of options.")
+        back = _back_url(spec, record_id)
+        if raw.get(field_name):
+            return _redirect(back, err=f"{field.label} already has a value.")
+        title = str(raw.get(spec.title_field, ""))
+        summary = str(raw.get("summary", "")) if any(f.name == "summary" for f in spec.fields) else ""
+        facts = facts_text(spec, coerce(spec, raw)[0], str(raw.get("facts", "")))
+        if not (title.strip() or summary.strip() or facts.strip()):
+            return _redirect(back, err="Fill in the title or a fact first, so the helper has something to go on.")
+        llm = get_llm()
+
+        def work() -> str | None:
+            return suggest_choice(llm, spec, field_name, title, summary, facts)
+
+        def finish(value: str | None) -> str:
+            return state.save_draft(
+                {
+                    "kind": "suggestion",
+                    "collection": spec.key,
+                    "record_id": record_id,
+                    "field": field_name,
+                    "value": value,
+                    "message": None if value else NO_SUGGESTION,
+                    "raw": raw,
+                }
+            )
+
+        job = jobs.start(work, finish)
+        return _redirect(f"/jobs/{job}?{urlencode({'next': back})}")
 
     def start_notice_draft(request: Request, spec: Spec, notice: str, record_id: str | None) -> Response:
         if spec.key != "events":
@@ -356,7 +447,15 @@ def create_app(site_root: Path, *, llm: ChatClient | None = None, inline_jobs: b
     def _apply_draft(spec: Spec, form_state: dict[str, Any], draft: dict[str, Any] | None) -> dict[str, Any]:
         if not draft or draft.get("collection") != spec.key:
             return form_state
-        if draft.get("kind") == "notice":
+        if isinstance(draft.get("raw"), dict):
+            form_state = {**form_state, **draft["raw"]}  # the form as it was when the helper was asked
+        elif draft.get("facts") and not str(form_state.get("facts") or "").strip():
+            form_state["facts"] = draft["facts"]
+        if draft.get("kind") == "suggestion":
+            field = str(draft.get("field"))
+            if draft.get("value") and not form_state.get(field):
+                form_state[field] = draft["value"]
+        elif draft.get("kind") == "notice":
             for name, value in (draft.get("fields") or {}).items():
                 if name == "body":
                     form_state["body"] = str(value)
