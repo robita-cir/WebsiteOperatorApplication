@@ -9,6 +9,7 @@ from pydantic import BaseModel, ValidationError
 
 from site_agent.frontmatter import parse_document
 from site_agent.plan import Plan
+from site_agent.records import SPECS, validate_file_text
 from site_agent.schemas import COLLECTIONS, describe_errors
 from site_agent.site import Site
 
@@ -35,13 +36,18 @@ def check_text(rel_path: str, text: str, model: type[BaseModel]) -> tuple[list[I
     return errors, warnings
 
 
-def collection_of(site: Site, rel_path: str) -> str | None:
-    """The collection a content file belongs to, or None when the file is not in a known collection."""
+def _content_folder(site: Site, rel_path: str) -> str | None:
+    """The folder under the content directory that a file sits in (its collection name), or None."""
     content_parts = PurePosixPath(site.content_dir).parts
     parts = PurePosixPath(rel_path).parts
     if parts[: len(content_parts)] != content_parts or len(parts) <= len(content_parts) + 1:
         return None
-    name = parts[len(content_parts)]
+    return parts[len(content_parts)]
+
+
+def collection_of(site: Site, rel_path: str) -> str | None:
+    """The collection a content file belongs to, or None when the file is not in a known collection."""
+    name = _content_folder(site, rel_path)
     return name if name in COLLECTIONS else None
 
 
@@ -61,16 +67,24 @@ def check_collection(site: Site, collection: str) -> tuple[list[Issue], list[Iss
 
 
 def check_plan(site: Site, plan: Plan) -> list[Issue]:
-    """Problems that would make the plan unsafe to write. An empty list means it can be written."""
+    """Problems that would make the plan unsafe to write. An empty list means it can be written.
+
+    Every content file is checked against its collection's rules, not only events, so a change to a news item or a
+    person cannot write a file the site would reject.
+    """
     problems: list[Issue] = []
     for change in plan.changes:
         if not site.is_writable(change.rel_path):
             problems.append(Issue(change.rel_path, "not in the paths the agent may change"))
             continue
-        collection = collection_of(site, change.rel_path)
-        if collection:
-            errors, _ = check_text(change.rel_path, change.after, COLLECTIONS[collection])
+        if change.after is None:  # a removal leaves nothing to check
+            continue
+        folder = _content_folder(site, change.rel_path)
+        if folder in COLLECTIONS:
+            errors, _ = check_text(change.rel_path, change.after, COLLECTIONS[folder])
             problems += errors
+        elif folder in SPECS:
+            problems += [Issue(change.rel_path, text) for text in validate_file_text(SPECS[folder], change.after)]
     return problems
 
 

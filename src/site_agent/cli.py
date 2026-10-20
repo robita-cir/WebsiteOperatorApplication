@@ -56,6 +56,14 @@ def _review_and_apply(site: Site, settings: Settings, plan: Plan, args: argparse
         for issue in problems:
             print(f"  {issue.rel_path}: {issue.message}")
         return 1
+    # A model edit that could not be placed safely is never half applied: the whole update waits for a person.
+    if plan.failures:
+        print(
+            "\nNot written. The model's edits could not all be placed safely. Edit those lines by hand, then try again:"
+        )
+        for failure in plan.failures:
+            print(f"  {failure}")
+        return 1
     if not args.apply:
         print("\nDry run: nothing was written. Run again with --apply to write these changes.")
         return 0

@@ -182,3 +182,13 @@ def test_homepage_lines_naming_the_event_are_listed_not_edited(site):
     plan = plan_update_event(site, FakeLLM(UPDATE_REPLY), "event-1", UPDATE_INSTRUCTION, today=TODAY)
     assert all(c.rel_path != "src/pages/index.astro" for c in plan.changes)
     assert any("src/pages/index.astro" in note and "by hand" in note for note in plan.notes)
+
+
+def test_a_venue_change_is_made_on_the_news_line_that_names_the_event(site):
+    plan = plan_update_event(
+        site, FakeLLM('{"venue": "Lecture Theatre, Example City"}'), "event-1", "Moved.", today=TODAY
+    )
+    news = next(change for change in plan.changes if change.rel_path == "src/content/news/next-up.md")
+    assert "in Lecture Theatre, Example City." in news.after
+    assert "Main Hall" not in news.after
+    assert any("next-up.md" in note and "changed automatically" in note for note in plan.notes)

@@ -91,3 +91,28 @@ def test_failed_check_after_apply_says_how_to_undo(site, site_dir, capsys):
     assert code == 1
     assert "The check failed. The changes are still written." in out
     assert (site_dir / "src/content/events/lab-talk.md").exists()
+
+
+def test_a_write_that_fails_part_way_is_undone_and_leaves_no_run(site, site_dir, monkeypatch):
+    before = (site_dir / "src/content/news/next-up.md").read_bytes()
+    plan = Plan(
+        summary="test",
+        changes=[
+            FileChange("src/content/news/next-up.md", site.read("src/content/news/next-up.md"), "changed\n"),
+            FileChange("src/content/events/new-one.md", None, '---\ntitle: "New"\n---\n'),
+        ],
+    )
+    real_write = site.write
+
+    def failing_write(rel, text):
+        if rel.endswith("new-one.md"):
+            raise OSError("disk full")
+        real_write(rel, text)
+
+    monkeypatch.setattr(site, "write", failing_write)
+    with pytest.raises(SiteAgentError, match="every change was undone"):
+        apply_plan(site, plan, command="test", model="m")
+
+    assert (site_dir / "src/content/news/next-up.md").read_bytes() == before
+    assert not (site_dir / "src/content/events/new-one.md").exists()
+    assert not list((site_dir / ".site-agent" / "runs").glob("*.json"))

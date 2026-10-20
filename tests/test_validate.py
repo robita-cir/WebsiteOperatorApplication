@@ -24,3 +24,11 @@ def test_a_change_outside_the_allow_list_is_refused(site_dir):
     site = Site(SiteSettings(root=site_dir))
     plan = Plan(summary="test", changes=[FileChange("public/notes.md", None, "x")])
     assert "not in the paths" in check_plan(site, plan)[0].message
+
+
+def test_a_plan_that_would_break_a_person_file_is_refused(site_dir):
+    site = Site(SiteSettings(root=site_dir))
+    rel = "src/content/people/jane-doe.md"
+    plan = Plan(summary="test", changes=[FileChange(rel, site.read(rel), '---\nname: "Jane"\ngroup: "wizard"\n---\n')])
+    problems = check_plan(site, plan)
+    assert problems and problems[0].rel_path == rel

@@ -9,6 +9,7 @@ import subprocess
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import NoReturn
 
 from site_agent.config import STATE_DIR
 from site_agent.errors import SiteAgentError
@@ -47,8 +48,32 @@ def _new_run_id(state: Path) -> str:
     return run_id
 
 
+def _put_back(
+    site: Site, backup_dir: Path, created: list[str], modified: list[str], removed: list[str], cause: Exception
+) -> NoReturn:
+    """Puts every file back as it was before a write failed part way, then reports that nothing was written."""
+    try:
+        for rel in created:
+            if site.exists(rel):
+                site.resolve(rel).unlink()
+        for rel in modified + removed:
+            shutil.copy2(backup_dir / rel, site.resolve(rel))
+    except OSError as restore_error:
+        raise SiteAgentError(
+            f"Writing stopped part way ({cause}), and the files could not all be put back ({restore_error}). "
+            f"The originals are in {backup_dir}."
+        ) from cause
+    raise SiteAgentError(
+        f"Writing stopped part way ({cause}), so every change was undone. Nothing was written."
+    ) from cause
+
+
 def apply_plan(site: Site, plan: Plan, *, command: str, model: str, approval_id: str | None = None) -> ApplyResult:
-    """Writes every change in the plan, or none of them if any change is refused before writing starts."""
+    """Writes every change in the plan, or none of them.
+
+    A write that fails part way is undone before the error is raised, so the site is never left half changed with no
+    record of it.
+    """
     state = state_dir(site)
     run_id = _new_run_id(state)
     backup_dir = state / "backups" / run_id
@@ -68,18 +93,21 @@ def apply_plan(site: Site, plan: Plan, *, command: str, model: str, approval_id:
             raise SiteAgentError(f"{change.rel_path} changed after the plan was made. Nothing was written.")
         (removed if change.is_removal else modified).append(change.rel_path)
 
-    for rel in modified + removed:  # byte-exact copies, so a restore gives back exactly what was there
-        backup = backup_dir / rel
-        backup.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(site.resolve(rel), backup)
-
     after_hashes: dict[str, str] = {}
-    for change in plan.changes:
-        if change.is_removal:
-            site.resolve(change.rel_path).unlink()
-        else:
-            site.write(change.rel_path, change.after or "")
-            after_hashes[change.rel_path] = sha256_text(change.after or "")
+    try:
+        for rel in modified + removed:  # byte-exact copies, so a restore gives back exactly what was there
+            backup = backup_dir / rel
+            backup.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(site.resolve(rel), backup)
+
+        for change in plan.changes:
+            if change.is_removal:
+                site.resolve(change.rel_path).unlink()
+            else:
+                site.write(change.rel_path, change.after or "")
+                after_hashes[change.rel_path] = sha256_text(change.after or "")
+    except Exception as exc:
+        _put_back(site, backup_dir, created, modified, removed, exc)
 
     log = {
         "run_id": run_id,

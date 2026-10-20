@@ -17,7 +17,7 @@ from site_agent.errors import SiteAgentError
 from site_agent.events import find_event, load_event, new_event_path
 from site_agent.frontmatter import render_document, set_frontmatter_values
 from site_agent.llm.base import ChatClient, Message
-from site_agent.llm.parsing import extract_json_object
+from site_agent.llm.parsing import extract_json_object, strip_reasoning
 from site_agent.plan import FileChange, Plan
 from site_agent.prompts import load_prompt
 from site_agent.schemas import Event, describe_errors
@@ -99,13 +99,21 @@ def _ask_model_for_leftovers(
     pairs = [sub for sub in subs if sub.old in excerpt]
     description = "\n".join(f'- replace "{sub.old}" with "{sub.new}"' for sub in pairs)
     system = load_prompt("edit_excerpt", change=description)
-    reply = llm.chat([Message("system", system), Message("user", f"File: {target}\n\n{excerpt}")])
+    reply = strip_reasoning(llm.chat([Message("system", system), Message("user", f"File: {target}\n\n{excerpt}")]))
     blocks = parse_edit_blocks(reply)
     if not blocks:
         if NO_CHANGE not in reply:
             plan.failures.append(f"{target}: the model returned no edit blocks")
         return text
-    result = apply_edit_blocks(text, blocks)
+    # An edit may only change lines the model was shown. A unique match elsewhere in the file is not enough.
+    shown = []
+    for number, block in enumerate(blocks, start=1):
+        key = block.search.strip("\n")
+        if key in excerpt or key not in text:  # text not in the file at all is reported as not found, as before
+            shown.append(block)
+        else:
+            plan.failures.append(f"{target}: edit {number} changes text the model was not shown, so it was not applied")
+    result = apply_edit_blocks(text, shown)
     plan.failures.extend(f"{target}: {failure}" for failure in result.failures)
     return result.text
 
@@ -140,9 +148,12 @@ def plan_update_event(
     plan = Plan(summary="")
     subs = substitutions_for(old_record, changes)
     needles = search_needles(subs)
+    # Every change, including a venue or series, is made on the lines that name the event by its old title. So the
+    # title is also searched for, to find those lines in other files.
+    find_terms = [*needles, old.title] if subs else []
     read_only: list[str] = []
     if subs:
-        mention_files = sorted({m.rel_path for m in site.find_mentions(needles, exclude={rel})})
+        mention_files = sorted({m.rel_path for m in site.find_mentions(find_terms, exclude={rel})})
         targets = [rel, *mention_files]
         if len(targets) > MAX_EDIT_FILES:
             plan.notes.append(
@@ -153,7 +164,7 @@ def plan_update_event(
         anchor = old.title
         for target in targets:
             start_text = edited[target] if target in edited else site.read(target)
-            if not matching_lines(start_text, needles):
+            if not matching_lines(start_text, find_terms):
                 continue
             if not site.is_writable(target):
                 read_only.append(target)

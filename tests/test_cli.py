@@ -108,3 +108,28 @@ def test_bad_config_key_is_reported_not_ignored(site_dir, capsys):
     (site_dir / "site-agent.toml").write_text("[llm]\nmodle = 'typo'\n", encoding="utf-8")
     assert main(["scan", "--site", str(site_dir)]) == 1
     assert "unknown setting(s) in [llm]: modle" in capsys.readouterr().err
+
+
+def test_an_update_with_a_model_edit_that_cannot_be_placed_writes_nothing(site_dir, capsys):
+    (site_dir / "src/content/news/deadlines.md").write_text("<p>Save the date: 10 March 2026</p>\n", encoding="utf-8")
+    event_before = (site_dir / "src/content/events/event-1.md").read_text(encoding="utf-8")
+    deadlines_before = (site_dir / "src/content/news/deadlines.md").read_text(encoding="utf-8")
+    bad_edit = "<<<<<<< SEARCH\nSave the date: 1 March 2026\n=======\nSave the date: 2 March 2026\n>>>>>>> REPLACE"
+    code = main(
+        [
+            "update-event",
+            "event-1",
+            "--instruction",
+            "The workshop moved to 14 April 2026 and now ends on 16 April 2026.",
+            "--assisted",
+            "--apply",
+            "--yes",
+            "--site",
+            str(site_dir),
+        ],
+        client=FakeLLM('{"date": "2026-04-14", "endDate": "2026-04-16"}', bad_edit),
+    )
+    assert code == 1
+    assert "Not written." in capsys.readouterr().out
+    assert (site_dir / "src/content/events/event-1.md").read_text(encoding="utf-8") == event_before
+    assert (site_dir / "src/content/news/deadlines.md").read_text(encoding="utf-8") == deadlines_before
