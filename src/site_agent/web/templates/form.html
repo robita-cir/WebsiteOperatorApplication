@@ -106,7 +106,10 @@
     <div class="panel-head"><h2>Draft</h2><span class="badge badge-muted">Not saved</span></div>
     <div class="panel-body">
       {% if draft.kind == 'notice' %}
-        <p>The helper filled in the form from the notice. Check each field before you preview.</p>
+        <p>The helper filled in the form from the notice. Check each field before you preview. The notice is now in your facts.</p>
+        {% for note in draft.notes or [] %}
+          <div class="banner b-warn"><div><p>{{ note }}</p></div></div>
+        {% endfor %}
       {% else %}
         <p>Draft ready for {{ draft.section|replace('body', 'the text')|replace('summary', 'the summary') }}. Read it, edit it in the form, then preview.</p>
       {% endif %}

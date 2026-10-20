@@ -10,6 +10,7 @@ from pathlib import PurePosixPath
 from typing import Any
 
 from site_agent.errors import SiteAgentError
+from site_agent.factcheck import fact_problems
 from site_agent.frontmatter import parse_document
 from site_agent.plan import FileChange, Plan
 from site_agent.records import (
@@ -204,11 +205,11 @@ class Repository:
         outcome.plan = Plan(summary=summary, changes=[FileChange(rel, before, new_text)])
         return outcome
 
-    def create(self, spec: Spec, raw: dict[str, Any], fact_tokens: list[str] | None = None) -> Outcome:
+    def create(self, spec: Spec, raw: dict[str, Any], facts: str = "") -> Outcome:
         outcome = Outcome()
         values, outcome.errors, body = coerce(spec, raw)
         outcome.errors.update(validate_values(spec, values, body))
-        extra = _fact_blockers(body, fact_tokens or [])
+        extra = fact_problems(spec, values, body, facts)
         title = str(values.get(spec.title_field) or "")
         if not title and not outcome.errors.get(spec.title_field):
             outcome.errors[spec.title_field] = f"{spec.field(spec.title_field).label} is required."
@@ -219,7 +220,7 @@ class Repository:
         rel = self.rel_path(spec, rec_id)
         return self._finish(spec, rel, None, None, lambda: render_new(spec, values, body), values, body, extra, outcome)
 
-    def update(self, spec: Spec, rec_id: str, raw: dict[str, Any], fact_tokens: list[str] | None = None) -> Outcome:
+    def update(self, spec: Spec, rec_id: str, raw: dict[str, Any], facts: str = "") -> Outcome:
         record = self.load(spec, rec_id)
         outcome = Outcome()
         values, outcome.errors, body = coerce(spec, raw)
@@ -227,9 +228,9 @@ class Repository:
         if outcome.errors:
             outcome.values, outcome.body = values, body
             return outcome
-        extra = _fact_blockers(body, fact_tokens or [])
         before = record.text
         old_values = dict(record.values)
+        extra = fact_problems(spec, values, body, facts, old_values, _body_of(before))
         outcome.warnings += self._rename_warnings(spec, rec_id, old_values, values)
         return self._finish(
             spec,
@@ -277,18 +278,6 @@ def _body_of(text: str | None) -> str:
     if text is None:
         return ""
     return parse_document(text).body.strip()
-
-
-def _fact_blockers(body: str, tokens: list[str]) -> list[str]:
-    """Items a draft added that are not in the facts. Saving is blocked while any of them is still in the text."""
-    blockers = []
-    for token in tokens:
-        if token and token in body:
-            blockers.append(
-                f'The text mentions "{token}", which is not in your facts. '
-                "Remove it from the text, or add it to the facts."
-            )
-    return blockers
 
 
 __all__ = ["Repository", "Outcome", "ListItem", "DEPENDENCIES"]

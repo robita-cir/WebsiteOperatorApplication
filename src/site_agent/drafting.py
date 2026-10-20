@@ -7,8 +7,8 @@ answer is only ever text in a box: the operator reads it, edits it, and approves
 
 from __future__ import annotations
 
+import datetime as dt
 import json
-import re
 import threading
 import time
 import urllib.request
@@ -18,46 +18,18 @@ from typing import Any
 
 from site_agent.config import LLMSettings
 from site_agent.errors import SiteAgentError
+from site_agent.factcheck import unsupported_tokens
 from site_agent.llm import ChatClient, Message
 from site_agent.llm.parsing import strip_reasoning
 from site_agent.prompts import load_prompt
 from site_agent.records import Spec
-
-_YEAR = re.compile(r"\b(?:19|20)\d{2}\b")
-_NUMBER = re.compile(r"\b\d{2,}(?:[.,]\d+)?\b")
-_URL = re.compile(r"https?://[^\s)]+|\b[\w-]+(?:\.[\w-]+)*\.(?:org|com|edu|net|in|uk|ac\.in|ac\.uk)\b", re.IGNORECASE)
-_EMAIL = re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.-]+\b")
+from site_agent.text_utils import ungrounded_fields
 
 LENGTHS = {
     "body": "about 60 to 120 words in short paragraphs",
     "summary": "one or two plain sentences",
     "description": "two to four plain sentences",
 }
-
-
-def unsupported_tokens(text: str, facts: str) -> list[str]:
-    """Years, numbers, web addresses and emails in `text` that do not appear in `facts`."""
-    haystack = facts.casefold()
-    found: list[str] = []
-    for pattern in (_EMAIL, _URL, _YEAR, _NUMBER):
-        for match in pattern.finditer(text):
-            token = match.group(0).rstrip(".,;:")
-            if token and token.casefold() not in haystack and token not in found:
-                found.append(token)
-    return found
-
-
-def facts_text(spec: Spec, values: dict[str, Any], extra: str) -> str:
-    """The facts the model may use: the filled-in fields, plus the free-text facts the operator typed."""
-    lines = []
-    for f in spec.fields:
-        value = values.get(f.name)
-        if value in (None, "", []) or isinstance(value, bool):
-            continue
-        shown = ", ".join(value) if isinstance(value, list) else str(value)
-        lines.append(f"{f.label}: {shown}")
-    lines += [line.strip() for line in extra.splitlines() if line.strip()]
-    return "\n".join(lines)
 
 
 def draft_section(llm: ChatClient, spec: Spec, section: str, length_key: str, facts: str) -> dict[str, Any]:
@@ -86,7 +58,21 @@ def extract_from_notice(llm: ChatClient, notice: str, today: str) -> dict[str, A
     system = load_prompt("extract_new_event", today=today)
     raw = ask_json(llm, system, notice)
     keep = ("title", "kind", "series", "date", "endDate", "venue", "summary", "body")
-    return {key: raw.get(key) for key in keep if raw.get(key) not in (None, "")}
+    fields = {key: raw.get(key) for key in keep if raw.get(key) not in (None, "")}
+    if isinstance(fields.get("kind"), str):  # the kinds in the form are lower case, as the record rules require
+        fields["kind"] = fields["kind"].strip().lower()
+    return fields
+
+
+def notice_notes(fields: dict[str, Any], notice: str) -> list[str]:
+    """Dates, places and series in the filled-in fields that the notice does not state, for the operator to check."""
+    checked: dict[str, Any] = dict(fields)
+    for key in ("date", "endDate"):
+        try:
+            checked[key] = dt.date.fromisoformat(str(fields[key])) if fields.get(key) else None
+        except ValueError:
+            checked[key] = None
+    return ungrounded_fields(checked, notice)
 
 
 class JobRunner:
@@ -101,18 +87,21 @@ class JobRunner:
         self._jobs: dict[str, dict[str, Any]] = {}
         self._lock = threading.Lock()
 
-    def start(self, work: Callable[[], Any]) -> str:
+    def start(self, work: Callable[[], Any], finish: Callable[[Any], Any] | None = None) -> str:
+        """Runs `work` in the background. `finish` then turns its result into the job's result (for example, saves a
+        draft). `finish` runs only if the job was not cancelled, and it runs under the lock, so a cancel that returns
+        guarantees nothing is saved afterwards."""
         job_id = uuid.uuid4().hex[:12]
         job = {"state": "running", "result": None, "error": None, "cancelled": False, "started": time.time()}
         with self._lock:
             self._jobs[job_id] = job
         if self._inline:
-            self._run(job, work)
+            self._run(job, work, finish)
         else:
-            threading.Thread(target=self._run, args=(job, work), daemon=True).start()
+            threading.Thread(target=self._run, args=(job, work, finish), daemon=True).start()
         return job_id
 
-    def _run(self, job: dict[str, Any], work: Callable[[], Any]) -> None:
+    def _run(self, job: dict[str, Any], work: Callable[[], Any], finish: Callable[[Any], Any] | None) -> None:
         try:
             result = work()
         except SiteAgentError as exc:
@@ -121,7 +110,18 @@ class JobRunner:
         except Exception as exc:  # the operator sees a plain message; the detail goes in the error text
             job.update(state="failed", error=f"Something went wrong: {exc}")
             return
-        if not job["cancelled"]:
+        with self._lock:
+            if job["cancelled"]:
+                return
+            try:
+                if finish is not None:
+                    result = finish(result)
+            except SiteAgentError as exc:
+                job.update(state="failed", error=str(exc))
+                return
+            except Exception as exc:
+                job.update(state="failed", error=f"Something went wrong: {exc}")
+                return
             job.update(state="done", result=result)
 
     def status(self, job_id: str) -> dict[str, Any] | None:

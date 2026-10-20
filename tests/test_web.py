@@ -457,3 +457,29 @@ def test_list_search_and_sample_filter(make_client):
     assert "Jane Doe" in searched and "Sam Roe" not in searched
     samples = client.get("/c/people?samples=1").text
     assert "Sam Roe" in samples and "Jane Doe" not in samples
+
+
+def test_notice_draft_lowers_the_kind_keeps_the_notice_as_facts_and_flags_what_it_does_not_state(make_client, site_dir):
+    import json
+
+    reply = (
+        '{"title": "Hands-on Perception Day", "kind": " Workshop ", "date": "2026-11-05", "endDate": null,'
+        ' "venue": "Lab 3, Example City", "summary": "A day of demos.", "body": "Open to all."}'
+    )
+    client = make_client(llm=FakeLLM(reply))
+    notice = "Perception day on 5 November 2026 in Lab 3."
+    response = client.post(
+        "/c/events/new",
+        data={"csrf": csrf(client), "action": "notice", "notice": notice},
+        follow_redirects=False,
+    )
+    page = html.unescape(client.get(response.headers["location"]).text)
+    assert "is not written in the text you gave" in page  # the venue is not in the notice
+    assert "Perception day on 5 November 2026 in Lab 3." in page  # the notice now sits in the facts box
+
+    draft_files = list((site_dir / ".site-agent" / "drafts").glob("*.json"))
+    assert len(draft_files) == 1
+    draft = json.loads(draft_files[0].read_text(encoding="utf-8"))
+    assert draft["fields"]["kind"] == "workshop"
+    assert draft["notice"] == notice
+    assert len(draft["notes"]) == 1 and "venue" in draft["notes"][0]

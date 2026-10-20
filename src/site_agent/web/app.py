@@ -22,8 +22,9 @@ from fastapi.templating import Jinja2Templates
 from site_agent.apply import apply_plan, run_check
 from site_agent.appstate import AppState
 from site_agent.config import Settings, load_settings
-from site_agent.drafting import JobRunner, draft_section, extract_from_notice, facts_text, model_status
+from site_agent.drafting import JobRunner, draft_section, extract_from_notice, model_status, notice_notes
 from site_agent.errors import SiteAgentError
+from site_agent.factcheck import facts_text, token_in_facts
 from site_agent.history import list_runs, undo
 from site_agent.launch import launch_report, placeholder_hits, samples
 from site_agent.llm import ChatClient, make_client
@@ -91,14 +92,6 @@ def raw_from_form(spec: Spec, form: Any) -> dict[str, Any]:
     return raw
 
 
-def blocking_tokens(spec: Spec, raw: dict[str, Any], draft: dict[str, Any] | None) -> list[str]:
-    """Draft items that are still not in the facts. Adding a fact clears its item."""
-    if not draft:
-        return []
-    facts_now = facts_text(spec, coerce(spec, raw)[0], str(raw.get("facts", "")))
-    return [token for token in draft.get("unsupported", []) if token.casefold() not in facts_now.casefold()]
-
-
 def create_app(site_root: Path, *, llm: ChatClient | None = None, inline_jobs: bool = False) -> FastAPI:
     settings: Settings = load_settings(site_root)
     site = Site(settings.site)
@@ -164,7 +157,7 @@ def create_app(site_root: Path, *, llm: ChatClient | None = None, inline_jobs: b
         status: int = 200,
     ) -> Response:
         facts_now = facts_text(spec, coerce(spec, form_state)[0], str(form_state.get("facts", "")))
-        pending = [t for t in (draft or {}).get("unsupported", []) if t.casefold() not in facts_now.casefold()]
+        pending = [t for t in (draft or {}).get("unsupported", []) if not token_in_facts(t, facts_now)]
         dependants = repo.dependants(spec, record_id) if record_id else []
         return page(
             request,
@@ -197,11 +190,11 @@ def create_app(site_root: Path, *, llm: ChatClient | None = None, inline_jobs: b
         if action == "notice":
             return start_notice_draft(request, spec, str(form.get("notice", "")), record_id)
 
-        tokens = blocking_tokens(spec, raw, draft)
+        facts = str(raw.get("facts", ""))
         if record_id is None:
-            outcome = repo.create(spec, raw, tokens)
+            outcome = repo.create(spec, raw, facts)
         else:
-            outcome = repo.update(spec, record_id, raw, tokens)
+            outcome = repo.update(spec, record_id, raw, facts)
         if not outcome.ok:
             return form_page(request, spec, raw, record_id=record_id, outcome=outcome, draft=draft, status=422)
         if outcome.plan is None:
@@ -245,8 +238,10 @@ def create_app(site_root: Path, *, llm: ChatClient | None = None, inline_jobs: b
         facts = facts_text(spec, values, str(raw.get("facts", "")))
         llm = get_llm()
 
-        def work() -> str:
-            result = draft_section(llm, spec, label, length_key, facts)
+        def work() -> dict[str, Any]:
+            return draft_section(llm, spec, label, length_key, facts)
+
+        def finish(result: dict[str, Any]) -> str:
             return state.save_draft(
                 {
                     "kind": "section",
@@ -258,7 +253,7 @@ def create_app(site_root: Path, *, llm: ChatClient | None = None, inline_jobs: b
                 }
             )
 
-        job = jobs.start(work)
+        job = jobs.start(work, finish)
         return _redirect(f"/jobs/{job}?{urlencode({'next': _back_url(spec, record_id)})}")
 
     def start_notice_draft(request: Request, spec: Spec, notice: str, record_id: str | None) -> Response:
@@ -269,11 +264,21 @@ def create_app(site_root: Path, *, llm: ChatClient | None = None, inline_jobs: b
         llm = get_llm()
         today = dt.date.today().isoformat()
 
-        def work() -> str:
-            fields = extract_from_notice(llm, notice, today)
-            return state.save_draft({"kind": "notice", "collection": spec.key, "fields": fields})
+        def work() -> dict[str, Any]:
+            return extract_from_notice(llm, notice, today)
 
-        job = jobs.start(work)
+        def finish(fields: dict[str, Any]) -> str:
+            return state.save_draft(
+                {
+                    "kind": "notice",
+                    "collection": spec.key,
+                    "fields": fields,
+                    "notice": notice,
+                    "notes": notice_notes(fields, notice),
+                }
+            )
+
+        job = jobs.start(work, finish)
         return _redirect(f"/jobs/{job}?{urlencode({'next': _back_url(spec, record_id)})}")
 
     def _back_url(spec: Spec, record_id: str | None) -> str:
@@ -357,6 +362,8 @@ def create_app(site_root: Path, *, llm: ChatClient | None = None, inline_jobs: b
                     form_state["body"] = str(value)
                 elif name in form_state:
                     form_state[name] = str(value)
+            if draft.get("notice") and not str(form_state.get("facts") or "").strip():
+                form_state["facts"] = draft["notice"]  # the notice is the source, so the fact checks can use it
         elif draft.get("kind") == "section":
             form_state[draft["section"]] = draft["text"]
         return form_state
