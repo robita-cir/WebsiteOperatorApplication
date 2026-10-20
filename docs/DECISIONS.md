@@ -358,3 +358,31 @@ dates are checked by the harness instead. A test fails if a schema sent to the m
 If the server refuses a schema request with HTTP 400, or its runner stops with HTTP 500, the same request is sent once more in
 plain JSON mode. Any other error is reported without a second request.
 
+## D43. A cancel stops the request even while the model is silent
+
+The client connects first, then watches the cancel flag while it waits for the reply's first words. When the job is cancelled,
+the connection is shut down, so a model that is still loading or reading a long prompt stops at once. This replaces the
+limit in D38: a cancel no longer waits for the first words or the timeout. A cancelled call is still logged as not successful.
+
+Why: a cancel that does not stop the model defeats the point of the button, and a slow start is exactly when it is pressed.
+
+## D44. Series and venue must match the words the notice uses
+
+The model gives the venue and the series with the words the notice uses for each. If the value is longer than those words but
+contains them, the value is shortened to the words, and a note says so. If the value is not part of those words, it is kept and
+a note asks the operator to check it. A notice that names a series (a capitalised phrase ending in Series, Season or Course) with
+no series in the record gets a note, unless the phrase is the event's own title.
+
+Why: a small model sometimes adds a sentence to a venue. Shortening it is safe, because the operator still reads the value in the
+preview. A series named in the notice and left out of the record is easy to miss.
+
+## D45. Tone and line-ending rules
+
+Tone is checked with fixed rules, not a model: an exclamation mark in a long paragraph, a word in capitals that is not a known
+acronym, and a short list of marketing words each give an advisory warning, which the operator ticks like the spelling
+warnings. Nothing is blocked. A file that mixes Windows and Unix line endings is refused, with a message to fix its line
+endings by hand, because a change to it could not be made safely. Files with one ending style are unchanged.
+
+Why: a model judgement of tone would be an unmeasured warning on every save. The file refusal is safer than rewriting a file
+whose endings are already inconsistent.
+

@@ -42,7 +42,7 @@ Decisions from the CIR team so far:
 | Launch readiness | Built to the template's rules, blockers and warnings. Matches the template's own check on the template copy | `launch.py`, `tests/test_launch.py` |
 | Template changes P1 to P19 | Proposed. None made | [REQUIREMENTS.md](REQUIREMENTS.md) section (e) |
 
-Test suite: 466 pass; one live model test is skipped unless `SITE_AGENT_LIVE=1`. `ruff check src tests` is clean. The test
+Test suite: 543 pass; one live model test is skipped unless `SITE_AGENT_LIVE=1`. `ruff check src tests` is clean. The test
 client is `httpx2`, which Starlette recommends in place of `httpx`.
 
 What was checked against the real template (a copy, never the template itself):
@@ -73,10 +73,11 @@ These are known gaps, in the order the team is likely to need them.
 8. **History speed.** Each history page re-reads every run. Fine for hundreds of runs; needs an index beyond that.
 9. **The old command line** (`add-event` and `update-event`, with `--assisted` as an opt-in) remains. The assisted mode
    is off by default, is not in the app, and does not write an update that it cannot apply safely.
-10. **Cancel while the model is silent.** Streaming is built (D38), but a cancel waits for the model's first words, or for the
-   timeout, if the model has not begun to write.
-11. **Spelling and tone.** Spelling advice is built (D41). A model tone check is not built, because tone has not been measured.
-12. **Mixed line endings.** A file that mixes Windows and Unix line endings is normalised to Windows endings when it changes.
+10. **Cancel while the model is silent.** Built (D43). A cancel stops the request at once, even before the model has begun to
+   write.
+11. **Tone.** Fixed advisory rules are built (D45). A model judgement of tone is not built, because tone has not been
+   measured.
+12. **Mixed line endings.** A file that mixes Windows and Unix line endings is refused, and must be fixed by hand (D45).
 13. **Model suggestions on the real notices.** Rewrite and Suggest are tested with a scripted model. Their quality on real
    drafts and real choice fields has not been measured.
 

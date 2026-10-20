@@ -40,7 +40,7 @@ src/site_agent/
 ├── search.py         Matches every word of a search, in any order, ignoring case and accents.
 ├── explain.py        Plain sentences for the usual failures of a site check. No model is used.
 ├── hardware.py       Reads the computer's memory and chooses the model size from it (model = "auto").
-├── style.py          Spelling advice for new text (British forms). Advisory warnings only.
+├── style.py          Spelling and tone advice for new text. Advisory warnings only.
 ├── plan.py           A plan is a list of file changes plus notes. Renders diffs.
 ├── validate.py       Checks content against its collection's rules, before writing and on demand.
 ├── apply.py          Writes a plan, keeps backups and a run log, undoes a write that fails part way, restores a run,
