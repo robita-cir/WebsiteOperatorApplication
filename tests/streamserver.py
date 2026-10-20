@@ -107,3 +107,43 @@ class StreamServer:
     def close(self) -> None:
         self._httpd.shutdown()
         self._httpd.server_close()
+
+
+class SilentServer:
+    """Accepts a connection, reads the request, and then says nothing, like a model that is still loading.
+
+    `closed` is set when the client's end of the connection closes; `got_request` when the request has arrived.
+    """
+
+    def __init__(self, silence: float = 30.0) -> None:
+        self.silence = silence
+        self.got_request = threading.Event()
+        self.closed = threading.Event()
+        self._listener = socket.socket()
+        self._listener.bind(("127.0.0.1", 0))
+        self._listener.listen(5)
+        self.url = f"http://127.0.0.1:{self._listener.getsockname()[1]}"
+        threading.Thread(target=self._serve, daemon=True).start()
+
+    def _serve(self) -> None:
+        try:
+            conn, _ = self._listener.accept()
+        except OSError:
+            return
+        with conn:
+            deadline = time.monotonic() + self.silence
+            while time.monotonic() < deadline:
+                readable, _, _ = select.select([conn], [], [], 0.05)
+                if not readable:
+                    continue
+                try:
+                    data = conn.recv(65536)
+                except OSError:
+                    data = b""
+                if data == b"":
+                    self.closed.set()
+                    return
+                self.got_request.set()  # request bytes only; the server never answers them
+
+    def close(self) -> None:
+        self._listener.close()
