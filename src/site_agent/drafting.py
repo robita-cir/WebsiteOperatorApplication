@@ -231,8 +231,8 @@ class JobRunner:
             }
 
     def cancel(self, job_id: str) -> None:
-        """Stops the job. A call to the model that is streaming closes its connection at the next chunk; whatever
-        the job produces after this is thrown away and never saved."""
+        """Stops the job. A call to the model closes its connection within a fraction of a second, even while the model
+        has not yet said anything; whatever the job produces after this is thrown away and never saved."""
         with self._lock:
             job = self._jobs.get(job_id)
             if job and job["state"] == "running":

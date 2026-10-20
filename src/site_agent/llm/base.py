@@ -5,9 +5,10 @@ from __future__ import annotations
 import contextvars
 import http.client
 import json
+import socket
+import threading
 import time
-import urllib.error
-import urllib.request
+import urllib.parse
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -110,12 +111,57 @@ def chat_logged(
     return text
 
 
+CANCEL_POLL_SECONDS = 0.2
+
+
+class _CancelWatcher:
+    """Stops a request that is waiting on a silent server.
+
+    A model that is loading or reading a long prompt sends nothing for a while, so a cancel check that only runs when a
+    chunk arrives would not run. This thread polls the job's cancel check and, when it fires, shuts the socket down;
+    that wakes the blocked read in the request thread (on Linux, macOS and Windows), which then fails and reports the
+    cancel. The socket is known early because the connection is opened before the request is sent.
+    """
+
+    def __init__(self, stop: Callable[[], bool]) -> None:
+        self._stop_check = stop
+        self._done = threading.Event()
+        self._sock: socket.socket | None = None
+        self.fired = False
+        self._thread = threading.Thread(target=self._watch, name="llm-cancel-watcher", daemon=True)
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def attach(self, sock: socket.socket | None) -> None:
+        self._sock = sock
+
+    def finish(self) -> None:
+        self._done.set()
+        self._thread.join(timeout=2)
+
+    def _watch(self) -> None:
+        while not self._done.wait(CANCEL_POLL_SECONDS):
+            if not self._stop_check():
+                continue
+            sock = self._sock
+            if sock is None:  # still connecting: the request thread checks the flag as soon as it has connected
+                continue
+            self.fired = True
+            try:
+                sock.shutdown(socket.SHUT_RDWR)
+            except OSError:  # already closed by the request thread, which is fine
+                pass
+            return
+
+
 def post_stream(url: str, payload: dict[str, Any], timeout_s: float) -> Iterator[str]:
     """Posts the request and yields the reply one decoded line at a time, as the server sends it.
 
-    Between lines it asks the job's cancel check (if there is one) whether to stop; if so it closes the connection, so
-    the server stops generating, and raises LLMError("cancelled"). timeout_s limits the wait for each read, not the
-    whole reply, because a reply that keeps arriving is making progress.
+    The job's cancel check (if there is one) is asked between lines, and a watcher thread asks it while the request is
+    waiting for the reply to begin; on a cancel the connection is closed, so the server stops generating, and
+    LLMError("cancelled") is raised. timeout_s limits the wait for each read, not the whole reply, because a reply
+    that keeps arriving is making progress.
     """
 
     def check_cancelled() -> None:
@@ -124,24 +170,64 @@ def post_stream(url: str, payload: dict[str, Any], timeout_s: float) -> Iterator
             raise LLMError(CANCELLED_TEXT)
 
     check_cancelled()
+    parts = urllib.parse.urlsplit(url)
+    if parts.scheme not in ("http", "https") or not parts.hostname:
+        raise LLMError(f"the model server address {url!r} is not a valid http or https address.")
+    connection_class = http.client.HTTPSConnection if parts.scheme == "https" else http.client.HTTPConnection
+    connection = connection_class(parts.hostname, parts.port, timeout=timeout_s)
+    path = (parts.path or "/") + (f"?{parts.query}" if parts.query else "")
     body = json.dumps(payload).encode("utf-8")
-    request = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"}, method="POST")
+    stop = CANCELLED.get()
+    watcher = _CancelWatcher(stop) if stop is not None else None
+    if watcher is not None:
+        watcher.start()
+    connected = False
+    response: http.client.HTTPResponse | None = None
     try:
-        # Leaving the with block (a cancel, an error, or the reader dropping this generator) closes the connection.
-        with urllib.request.urlopen(request, timeout=timeout_s) as response:
-            for raw in response:
+        # Leaving this try (a cancel, an error, or the reader dropping this generator) closes the connection.
+        try:
+            connection.connect()
+            connected = True
+            if watcher is not None:
+                watcher.attach(connection.sock)
+            check_cancelled()
+            connection.request("POST", path, body=body, headers={"Content-Type": "application/json"})
+            response = connection.getresponse()
+            if response.status >= 300:
+                detail = response.read(300).decode("utf-8", "replace")
+                raise LLMError(f"the server answered HTTP {response.status}: {detail}", status=response.status)
+            while True:
+                raw = response.readline()
+                if not raw:
+                    break
                 check_cancelled()
                 yield raw.decode("utf-8", "replace").strip()
             check_cancelled()
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", "replace")[:300]
-        raise LLMError(f"the server answered HTTP {exc.code}: {detail}", status=exc.code) from exc
-    except urllib.error.URLError as exc:
-        raise LLMError(f"could not reach the model server at {url} ({exc.reason}). Is it running?") from exc
-    except TimeoutError as exc:
-        raise LLMError(f"the model did not answer within {timeout_s:.0f} seconds. Try a smaller model.") from exc
-    except (http.client.HTTPException, OSError) as exc:  # the connection dropped part way through the reply
-        raise LLMError(f"the connection to the model server was lost before the reply was complete ({exc})") from exc
+        except LLMError:
+            raise
+        except TimeoutError as exc:
+            if watcher is not None and watcher.fired:
+                raise LLMError(CANCELLED_TEXT) from exc
+            if not connected:
+                raise LLMError(f"could not reach the model server at {url} (timed out). Is it running?") from exc
+            raise LLMError(f"the model did not answer within {timeout_s:.0f} seconds. Try a smaller model.") from exc
+        except (http.client.HTTPException, OSError) as exc:
+            if watcher is not None and watcher.fired:
+                raise LLMError(CANCELLED_TEXT) from exc
+            if not connected:
+                raise LLMError(f"could not reach the model server at {url} ({exc}). Is it running?") from exc
+            # the connection dropped part way through the reply
+            raise LLMError(
+                f"the connection to the model server was lost before the reply was complete ({exc})"
+            ) from exc
+    finally:
+        if watcher is not None:
+            watcher.finish()
+        # A reply that ends when the server closes (HTTP/1.0) leaves the socket owned by the response, so closing the
+        # connection alone would not hang up on a server that is still generating.
+        if response is not None:
+            response.close()
+        connection.close()
 
 
 def stream_error(detail: Any) -> LLMError:
