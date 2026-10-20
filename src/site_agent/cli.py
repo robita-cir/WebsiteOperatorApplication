@@ -178,6 +178,22 @@ def cmd_restore(args: argparse.Namespace, client: ChatClient | None) -> int:
     return 0
 
 
+def cmd_audit(args: argparse.Namespace, client: ChatClient | None) -> int:
+    from site_agent.audit import run_audit
+
+    _, site = _settings_and_site(args)
+    result = run_audit(site)
+    shown = 10  # the report has every line; the screen only needs the first few
+    for label, items in (("error  ", result.errors), ("warning", result.warnings)):
+        for item in items[:shown]:
+            print(f"{label} {item}")
+        if len(items) > shown:
+            print(f"{label} ... and {len(items) - shown} more in the report")
+    print(f"Audit done: {len(result.errors)} error(s), {len(result.warnings)} warning(s). No content was changed.")
+    print(f"Report: {result.report_path}")
+    return result.exit_code
+
+
 def _add_common(parser: argparse.ArgumentParser, *, writes: bool) -> None:
     parser.add_argument("--site", type=Path, default=Path("."), help="folder of the website (default: current folder)")
     if writes:
@@ -236,6 +252,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_common(update, writes=True)
     update.set_defaults(handler=cmd_update_event)
+
+    audit = commands.add_parser(
+        "audit", help="check the whole site and write a report to the .site-agent folder (no model needed)"
+    )
+    _add_common(audit, writes=False)
+    audit.set_defaults(handler=cmd_audit)
 
     restore = commands.add_parser("restore", help="undo a run that was written with --apply")
     restore.add_argument("run_id", help="run id printed when the changes were written")
