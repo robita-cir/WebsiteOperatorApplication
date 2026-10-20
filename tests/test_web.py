@@ -416,7 +416,7 @@ def test_go_back_and_edit_brings_the_values_back(make_client):
 
 def test_a_failed_draft_says_why_and_saves_nothing(make_client):
     class Broken:
-        def chat(self, messages, *, json_mode=False):
+        def chat(self, messages, *, json_mode=False, schema=None):
             raise RuntimeError("the model fell over")
 
     client = make_client(llm=Broken())

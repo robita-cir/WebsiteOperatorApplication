@@ -23,9 +23,10 @@ class LLMSettings:
     provider: str = "ollama"
     model: str = "qwen2.5:7b"
     base_url: str = "http://localhost:11434"
-    timeout_s: float = 300.0
+    timeout_s: float = 600.0  # a 7B model on a laptop CPU has taken over 400 seconds for one long draft
     temperature: float = 0.1
     context_tokens: int = 8192  # Ollama only: the context window requested for each call
+    max_output_tokens: int = 1200  # cap on one reply, so a model that never stops cannot run to the timeout
 
 
 @dataclass(frozen=True)
