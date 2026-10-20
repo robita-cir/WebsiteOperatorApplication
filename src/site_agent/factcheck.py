@@ -40,6 +40,32 @@ def unsupported_tokens(text: str, facts: str) -> list[str]:
     return found
 
 
+_STOPWORDS = frozenset(
+    """about after also been before being between both could does done each from have here into just made make many
+    more most much must only other over said same should since some such than that their them then there these they
+    this those through under until very was were what when where which while who will with would your""".split()
+)
+_SENTENCE_END = re.compile(r"(?<=[.!?])\s+|\n+")
+_WORD = re.compile(r"[^\W\d_]+")
+MIN_CLAIM_WORD = 4  # shorter words are mostly small connecting words
+
+
+def claim_sentences(text: str, facts: str) -> list[str]:
+    """Sentences of `text` that share no meaningful word with the facts, so they may state something not given.
+
+    This is a warning for the operator to read, not a block: a true sentence can use new words, and a false one can
+    reuse the facts' words. Sentences with no meaningful word at all are not flagged, as there is nothing to compare.
+    """
+    fact_words = set(_WORD.findall(facts.casefold()))
+    flagged = []
+    for sentence in _SENTENCE_END.split(text):
+        sentence = sentence.strip()
+        words = {w for w in _WORD.findall(sentence.casefold()) if len(w) >= MIN_CLAIM_WORD and w not in _STOPWORDS}
+        if words and not words & fact_words:
+            flagged.append(sentence)
+    return flagged
+
+
 def facts_text(spec: Spec, values: Mapping[str, Any], extra: str) -> str:
     """The facts the model may use: the short fields filled in, plus the facts the operator typed."""
     lines = []

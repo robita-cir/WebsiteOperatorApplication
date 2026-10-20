@@ -19,7 +19,7 @@ from typing import Any
 
 from site_agent.config import LLMSettings
 from site_agent.errors import SiteAgentError
-from site_agent.factcheck import unsupported_tokens
+from site_agent.factcheck import claim_sentences, unsupported_tokens
 from site_agent.llm import ChatClient, Message
 from site_agent.llm.parsing import strip_reasoning
 from site_agent.prompts import load_prompt
@@ -34,7 +34,7 @@ LENGTHS = {
 
 
 def draft_section(llm: ChatClient, spec: Spec, section: str, length_key: str, facts: str) -> dict[str, Any]:
-    """Asks for one piece of wording. Returns {"text", "unsupported"}."""
+    """Asks for one piece of wording. Returns {"text", "unsupported", "claims"}."""
     if not facts.strip():
         raise SiteAgentError("Write at least one fact first. The model can only use what you give it.")
     system = load_prompt(
@@ -49,7 +49,7 @@ def draft_section(llm: ChatClient, spec: Spec, section: str, length_key: str, fa
         text = text.strip("`").strip()
     if not text:
         raise SiteAgentError("The model returned an empty draft. Try again, or add more facts.")
-    return {"text": text, "unsupported": unsupported_tokens(text, facts)}
+    return {"text": text, "unsupported": unsupported_tokens(text, facts), "claims": claim_sentences(text, facts)}
 
 
 @dataclass(frozen=True)

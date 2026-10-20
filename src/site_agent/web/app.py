@@ -30,6 +30,7 @@ from site_agent.launch import launch_report, placeholder_hits, samples
 from site_agent.llm import ChatClient, make_client
 from site_agent.plan import FileChange, Plan, fingerprint
 from site_agent.records import SPECS, Spec, coerce
+from site_agent.reference import read_reference
 from site_agent.repository import Outcome, Repository
 from site_agent.site import Site
 
@@ -159,6 +160,9 @@ def create_app(site_root: Path, *, llm: ChatClient | None = None, inline_jobs: b
         facts_now = facts_text(spec, coerce(spec, form_state)[0], str(form_state.get("facts", "")))
         pending = [t for t in (draft or {}).get("unsupported", []) if not token_in_facts(t, facts_now)]
         dependants = repo.dependants(spec, record_id) if record_id else []
+        # A claim is shown while its sentence is still in the text, so editing the sentence clears the warning.
+        section_text = " ".join(str(form_state.get((draft or {}).get("section", "")) or "").split())
+        claims = [c for c in (draft or {}).get("claims", []) if " ".join(c.split()) in section_text]
         return page(
             request,
             "form.html",
@@ -173,6 +177,7 @@ def create_app(site_root: Path, *, llm: ChatClient | None = None, inline_jobs: b
             warnings=outcome.warnings if outcome else [],
             draft=draft,
             draft_pending=pending,
+            draft_claims=claims,
             dependants=dependants,
             title=(f"Edit {spec.singular}" if record_id else f"Add {spec.singular}"),
         )
@@ -189,6 +194,8 @@ def create_app(site_root: Path, *, llm: ChatClient | None = None, inline_jobs: b
             return start_section_draft(request, spec, action.split(":", 1)[1], raw, record_id)
         if action == "notice":
             return start_notice_draft(request, spec, str(form.get("notice", "")), record_id)
+        if action == "reference":
+            return start_reference_draft(request, spec, str(form.get("reference", "")), record_id)
 
         facts = str(raw.get("facts", ""))
         if record_id is None:
@@ -250,6 +257,7 @@ def create_app(site_root: Path, *, llm: ChatClient | None = None, inline_jobs: b
                     "section": section,
                     "text": result["text"],
                     "unsupported": result["unsupported"],
+                    "claims": result.get("claims", []),
                 }
             )
 
@@ -276,6 +284,28 @@ def create_app(site_root: Path, *, llm: ChatClient | None = None, inline_jobs: b
                     "notice": notice,
                     "notes": notice_notes(fields, notice),
                 }
+            )
+
+        job = jobs.start(work, finish)
+        return _redirect(f"/jobs/{job}?{urlencode({'next': _back_url(spec, record_id)})}")
+
+    def start_reference_draft(request: Request, spec: Spec, reference: str, record_id: str | None) -> Response:
+        if spec.key != "publications":
+            raise HTTPException(status_code=400, detail="References can only be read for publications.")
+        if not reference.strip():
+            return _redirect(
+                _back_url(spec, record_id), err="Paste the reference first, then press Fill from reference."
+            )
+        llm = get_llm()
+        this_year = dt.date.today().year
+
+        def work() -> tuple[dict[str, Any], list[str]]:
+            return read_reference(llm, reference, this_year)
+
+        def finish(result: tuple[dict[str, Any], list[str]]) -> str:
+            fields, notes = result
+            return state.save_draft(
+                {"kind": "reference", "collection": spec.key, "fields": fields, "reference": reference, "notes": notes}
             )
 
         job = jobs.start(work, finish)
@@ -364,6 +394,10 @@ def create_app(site_root: Path, *, llm: ChatClient | None = None, inline_jobs: b
                     form_state[name] = str(value)
             if draft.get("notice") and not str(form_state.get("facts") or "").strip():
                 form_state["facts"] = draft["notice"]  # the notice is the source, so the fact checks can use it
+        elif draft.get("kind") == "reference":
+            for name, value in (draft.get("fields") or {}).items():
+                if name in form_state:
+                    form_state[name] = "\n".join(value) if isinstance(value, list) else str(value)
         elif draft.get("kind") == "section":
             form_state[draft["section"]] = draft["text"]
         return form_state

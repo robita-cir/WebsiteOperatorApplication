@@ -84,6 +84,15 @@
   </fieldset>
   {% endif %}
 
+  {% if spec.key == 'publications' %}
+  <fieldset class="panel facts">
+    <legend>Fill from a reference</legend>
+    <p class="hint">Paste the reference as it is written. The helper reads it and fills in this form. It leaves out anything the text does not state. You still check every field.</p>
+    <textarea id="f-reference" name="reference" rows="4" aria-label="The reference to read"></textarea>
+    <div class="btns"><button class="btn" type="submit" name="action" value="reference">Fill from reference</button></div>
+  </fieldset>
+  {% endif %}
+
   <div class="btns">
     <button class="btn btn-primary" type="submit" name="action" value="preview">Preview changes</button>
     <a class="btn" href="/c/{{ spec.key }}">Cancel</a>
@@ -110,11 +119,19 @@
         {% for note in draft.notes or [] %}
           <div class="banner b-warn"><div><p>{{ note }}</p></div></div>
         {% endfor %}
+      {% elif draft.kind == 'reference' %}
+        <p>The helper filled in the form from the reference. Check each field against the reference before you preview.</p>
+        {% for note in draft.notes or [] %}
+          <div class="banner b-warn"><div><p>{{ note }}</p></div></div>
+        {% endfor %}
       {% else %}
         <p>Draft ready for {{ draft.section|replace('body', 'the text')|replace('summary', 'the summary') }}. Read it, edit it in the form, then preview.</p>
       {% endif %}
       {% for token in draft_pending %}
         <div class="banner b-error"><div><p><strong>Not in your facts:</strong> "{{ token }}". Remove it from the text, or add it to the facts.</p></div></div>
+      {% endfor %}
+      {% for claim in draft_claims %}
+        <div class="banner b-warn"><div><p>Check this sentence against your facts: {{ claim }}</p></div></div>
       {% endfor %}
       {% if not draft_pending and draft.unsupported %}
         <p class="note">The facts now cover everything the draft mentions.</p>
