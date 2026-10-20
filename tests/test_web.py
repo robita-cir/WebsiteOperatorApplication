@@ -476,7 +476,8 @@ def test_notice_draft_lowers_the_kind_keeps_the_notice_as_facts_and_flags_what_i
         follow_redirects=False,
     )
     page = html.unescape(client.get(response.headers["location"]).text)
-    assert "is not written in the text you gave" in page  # the venue is not in the notice
+    # The venue holds more than its quote ("Lab 3"), so it is cut back to the quote and the operator is told.
+    assert "The venue was shortened to the words the notice uses: 'Lab 3'." in page
     assert "Perception day on 5 November 2026 in Lab 3." in page  # the notice now sits in the facts box
 
     draft_files = list((site_dir / ".site-agent" / "drafts").glob("*.json"))

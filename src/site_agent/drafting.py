@@ -75,6 +75,9 @@ def extract_notice(llm: ChatClient, notice: str, today: str | dt.date) -> Notice
     fields = {key: raw.get(key) for key in keep if raw.get(key) not in (None, "")}
     if reading.fields.get("date"):  # a relative date, worked out here, replaces the model's
         fields["date"] = reading.fields["date"]
+    for key in ("venue", "series"):  # a value that held more than the notice's words was cut back to them
+        if key in fields and reading.fields.get(key):
+            fields[key] = reading.fields[key]
     if isinstance(fields.get("kind"), str):  # the kinds in the form are lower case, as the record rules require
         fields["kind"] = fields["kind"].strip().lower()
     notes = [*reading.blockers, *reading.notes, *notice_notes(fields, notice)]
