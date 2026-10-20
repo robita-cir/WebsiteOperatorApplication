@@ -72,7 +72,7 @@ def test_the_schema_is_given_to_the_model_for_both_workflows(site):
     assert add_llm.schemas == [EVENT_SCHEMA]
     assert EVENT_SCHEMA["required"] == ["title", "kind", "date"]
     assert EVENT_SCHEMA["properties"]["kind"]["enum"] == ["workshop", "programme", "talk"]
-    assert EVENT_SCHEMA["properties"]["date"]["pattern"] == r"^\d{4}-\d{2}-\d{2}$"
+    assert "pattern" not in EVENT_SCHEMA["properties"]["date"]  # the server cannot compile regular expressions here
 
     update_llm = RecordingLLM('{"summary": "Now with a poster session."}')
     plan_update_event(site, update_llm, "event-1", "Add a poster session.", today=TODAY)
@@ -252,3 +252,20 @@ def test_a_summary_number_not_in_the_notice_is_a_failure(site):
 def test_the_event_date_written_another_way_in_the_body_is_supported(site):
     plan = plan_add_event(site, FakeLLM(reply(body="The day runs on November 5, 2026.")), NOTICE, today=TODAY)
     assert plan.failures == []
+
+
+def _keys_in(node):
+    """Every key name in a nested dict or list, so a regular expression anywhere in a schema is found."""
+    if isinstance(node, dict):
+        for key, value in node.items():
+            yield key
+            yield from _keys_in(value)
+    elif isinstance(node, list):
+        for item in node:
+            yield from _keys_in(item)
+
+
+def test_no_schema_sent_to_the_model_uses_a_regular_expression():
+    # Ollama's grammar builder crashes on backslash escapes such as \d, so the schemas must not name a pattern.
+    for schema in (EVENT_SCHEMA, UPDATE_EVENT_SCHEMA):
+        assert "pattern" not in set(_keys_in(schema))

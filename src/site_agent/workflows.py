@@ -39,7 +39,9 @@ EDIT_REMINDER = f"Reply with SEARCH/REPLACE blocks copied from the excerpt, or {
 # Fields the model may set. "sample" and "body" are never taken from the model's answer.
 RECORD_FIELDS = ("title", "kind", "series", "date", "endDate", "venue", "summary")
 
-_DATE_PATTERN = r"^\d{4}-\d{2}-\d{2}$"
+# The date shape is checked by the harness (Event). A regular expression here is not used: the server's grammar
+# builder for schema-constrained output crashes on \d escapes, so the schema only names the format in words.
+_DATE_HINT = "A calendar date written YYYY-MM-DD."
 _TEXT_OR_NULL = {"type": ["string", "null"]}
 # The shape the model is asked for, for clients that can constrain a reply. The harness still checks every value.
 EVENT_SCHEMA: dict[str, Any] = {
@@ -48,8 +50,8 @@ EVENT_SCHEMA: dict[str, Any] = {
         "title": {"type": "string"},
         "kind": {"type": "string", "enum": ["workshop", "programme", "talk"]},
         "series": _TEXT_OR_NULL,
-        "date": {"type": "string", "pattern": _DATE_PATTERN},
-        "endDate": {"type": ["string", "null"], "pattern": _DATE_PATTERN},
+        "date": {"type": "string", "description": _DATE_HINT},
+        "endDate": {"type": ["string", "null"], "description": _DATE_HINT},
         "venue": _TEXT_OR_NULL,
         "summary": _TEXT_OR_NULL,
         "body": {"type": "string"},

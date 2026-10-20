@@ -147,7 +147,7 @@ def test_a_400_without_a_schema_is_not_retried(server_for, messages):
 
 
 def test_other_errors_are_not_retried_with_a_schema(server_for, messages):
-    server = server_for((500, {"error": "boom"}))
+    server = server_for((503, {"error": "busy"}))
     with pytest.raises(LLMError):
         _ollama(server).chat(messages, schema=SCHEMA)
     assert len(server.received) == 1
@@ -236,3 +236,10 @@ def test_log_call_itself_swallows_write_errors(tmp_path):
         output_tokens=None,
         ok=True,
     )
+
+
+def test_a_runner_that_stops_on_a_schema_falls_back_to_plain_json(server_for, messages):
+    # A 500 is what the local runner answers when it cannot compile a schema; the same request without one works.
+    server = server_for((500, {"error": "model runner has unexpectedly stopped"}), OLLAMA_OK)
+    assert _ollama(server).chat(messages, schema=SCHEMA) == '{"title": "x"}'
+    assert [b["format"] for b in server.received] == [SCHEMA, "json"]

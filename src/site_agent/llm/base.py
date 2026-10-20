@@ -69,16 +69,17 @@ def chat_logged(
     schema: dict[str, Any] | None,
     request: Callable[[bool, dict[str, Any] | None], Reply],
 ) -> str:
-    """Runs request(json_mode, schema), retries once without the schema on HTTP 400, and records the call."""
+    """Runs request(json_mode, schema), retries once without the schema on HTTP 400 or 500, and records the call."""
     started = time.monotonic()
     schema_used = schema is not None
     try:
         try:
             text, tokens = request(json_mode, schema)
         except LLMError as exc:
-            if schema is None or exc.status != 400:
+            if schema is None or exc.status not in (400, 500):
                 raise
-            # Many servers predate schema-constrained output and answer 400. Plain json mode still works for them.
+            # Many servers predate schema-constrained output and answer 400. Some runners stop (500) on a schema they
+            # cannot compile. Plain json mode still works for both.
             schema_used = False
             text, tokens = request(True, None)
     except LLMError as exc:
