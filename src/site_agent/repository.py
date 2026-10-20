@@ -27,6 +27,7 @@ from site_agent.records import (
     validate_values,
 )
 from site_agent.site import Site
+from site_agent.style import spelling_advice
 
 # Which field of one collection names an entry in another. A change to the named entry is reported with its dependants.
 DEPENDENCIES = (
@@ -199,11 +200,27 @@ class Repository:
         if new_text == before:
             outcome.warnings.append("Nothing has changed, so there is nothing to save.")
             return outcome
+        outcome.warnings += self._spelling_warnings(spec, old_values, values, _body_of(before), body)
         outcome.changes = plain_changes(spec, old_values, values, _body_of(before), body)
         title = str(values.get(spec.title_field) or "")
         summary = f"{'Add' if before is None else 'Update'} {spec.singular} '{title}' ({rel})"
         outcome.plan = Plan(summary=summary, changes=[FileChange(rel, before, new_text)])
         return outcome
+
+    @staticmethod
+    def _spelling_warnings(
+        spec: Spec, old_values: dict[str, Any] | None, values: dict[str, Any], old_body: str, body: str
+    ) -> list[str]:
+        """Spelling advice for the long texts and the body that are new or changed. Text the operator did not touch is
+        left alone, so an unrelated edit does not bring up old spellings."""
+        texts = [
+            str(values[f.name])
+            for f in spec.fields
+            if f.kind == "long" and values.get(f.name) and (old_values or {}).get(f.name) != values.get(f.name)
+        ]
+        if spec.body_label and body and body.replace("\r\n", "\n") != old_body:
+            texts.append(body)
+        return spelling_advice("\n\n".join(texts))
 
     def create(self, spec: Spec, raw: dict[str, Any], facts: str = "") -> Outcome:
         outcome = Outcome()
