@@ -1,0 +1,3 @@
+Workshop on Sensor Calibration
+
+We invite students and staff to a two-day workshop on the calibration of cameras and force sensors for robot arms. The workshop runs from 8 June 2026 to 9 June 2026 in Seminar Room 2, Example City. Day one covers camera calibration with printed targets. Day two covers force sensors and checking the results. Bring a laptop. Places are limited to 30 people.
