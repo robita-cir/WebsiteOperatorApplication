@@ -5,6 +5,7 @@ import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
+from streamserver import as_stream
 
 from site_agent.calllog import log_call
 from site_agent.config import LLMSettings
@@ -31,9 +32,13 @@ class _Server:
             def do_POST(self):  # noqa: N802 (http.server naming)
                 received.append(json.loads(self.rfile.read(int(self.headers["Content-Length"]))))
                 code, body = queue.pop(0)
-                payload = json.dumps(body).encode("utf-8")
+                # The clients ask for a stream, so a good reply is sent as one; an error is a plain JSON body.
+                if code == 200:
+                    payload, kind = as_stream(self.path, body)
+                else:
+                    payload, kind = json.dumps(body).encode("utf-8"), "application/json"
                 self.send_response(code)
-                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Type", kind)
                 self.send_header("Content-Length", str(len(payload)))
                 self.end_headers()
                 self.wfile.write(payload)
